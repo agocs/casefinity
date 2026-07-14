@@ -9,6 +9,9 @@
     <div id="app">
       <aside id="sidebar">
         <h1>Hardcase Gridfinity</h1>
+        <nav class="top-nav">
+          <a href="#" id="nav-about">About</a>
+        </nav>
         <label class="field">
           <span>Model</span>
           <select id="model-select"></select>
@@ -20,8 +23,33 @@
           <button id="download-step" type="button">Download STEP</button>
         </div>
         <div id="status">loading CAD kernel…</div>
+        <div id="about-panel" hidden>
+          <h2>About</h2>
+          <p>
+            <strong>Hardcase Gridfinity Generator</strong> is a parametric
+            model generator for the Hardcase Gridfinity system — a set of
+            3D-printable inserts that turn a hard case into an organized
+            tool and parts storage system.
+          </p>
+          <p>
+            Models are defined as code against the
+            <a href="https://replicad.xyz/" target="_blank" rel="noopener">replicad</a>
+            API (OpenCascade B-rep kernel compiled to WASM) and built in a
+            web worker. The site is fully static — no backend.
+          </p>
+          <p>
+            The original Hardcase Gridfinity designs were created by the
+            Hardcase Gridfinity author. License for publishing a public
+            generator is unresolved.
+          </p>
+          <p>
+            <a href="#" id="about-close">← Back to generator</a>
+          </p>
+        </div>
       </aside>
-      <main id="viewport"></main>
+      <main id="viewport">
+        <div id="spinner"><div class="spinner-ring"></div></div>
+      </main>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

@@ -18,6 +18,7 @@ const status = document.getElementById("status")!;
 const stlButton = document.getElementById("download-stl") as HTMLButtonElement;
 const stepButton = document.getElementById("download-step") as HTMLButtonElement;
 const viewer = new Viewer(document.getElementById("viewport")!);
+const spinner = document.getElementById("spinner")!;
 
 let currentModelId = models[0].id;
 let currentValues: ParamValues = defaultValues(models[0]);
@@ -31,6 +32,7 @@ function setStatus(text: string, isError = false): void {
 
 async function rebuild(): Promise<void> {
   const token = ++buildToken;
+  spinner.classList.add("active");
   setStatus("building…");
   const started = performance.now();
   try {
@@ -41,6 +43,8 @@ async function rebuild(): Promise<void> {
   } catch (error) {
     if (token !== buildToken) return;
     setStatus(`build failed: ${error instanceof Error ? error.message : error}`, true);
+  } finally {
+    if (token === buildToken) spinner.classList.remove("active");
   }
 }
 
@@ -95,5 +99,24 @@ for (const model of models) {
 select.addEventListener("change", () => selectModel(select.value));
 stlButton.addEventListener("click", () => void exportModel("stl"));
 stepButton.addEventListener("click", () => void exportModel("step"));
+
+// About page toggle
+const aboutPanel = document.getElementById("about-panel")!;
+const mainForm = document.getElementById("params-form")!;
+const aboutLink = document.getElementById("nav-about")!;
+const aboutClose = document.getElementById("about-close")!;
+const modelField = document.getElementById("model-select")!.closest(".field")! as HTMLElement;
+const actionsBox = document.getElementById("actions")!;
+
+function showAbout(show: boolean): void {
+  aboutPanel.hidden = !show;
+  mainForm.hidden = show;
+  description.hidden = show;
+  modelField.hidden = show;
+  actionsBox.hidden = show;
+}
+
+aboutLink.addEventListener("click", (e) => { e.preventDefault(); showAbout(true); });
+aboutClose.addEventListener("click", (e) => { e.preventDefault(); showAbout(false); });
 
 selectModel(currentModelId);
