@@ -1,0 +1,11 @@
+# Cloudflare Pages config for the Hardcase Gridfinity generator (fully static).
+# This file lives in the project root directory (hardcase-gridfinity-generator/),
+# which is where `wrangler pages deploy` runs, so `dist` below is relative to here.
+#
+# `pages_build_output_dir` is what tells Wrangler to treat this as a Pages
+# project (and to read `name` for `wrangler pages deploy`). No compatibility
+# flags / bindings are needed — the site has no Pages Functions.
+
+name = "hardcase-gridfinity-generator"
+pages_build_output_dir = "dist"
+compatibility_date = "2025-06-01"
