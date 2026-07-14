@@ -90,6 +90,6 @@ Reverse-engineering/verification scripts (Node, in `scripts/`):
 - New models: derive dimensions from Fusion parameter expressions where known
   (not magic numbers), register in `src/models/index.ts`, verify with
   `diff-model.mjs`, then add expected bbox/volume to `smoke.mjs`. Achieved
-  fidelity so far: bin-no-lid 0.02% volume error; document any deliberate
-  gaps (like the with-lid lid seat) in the model file's doc comment and the
-  README table.
+  fidelity so far: bin-no-lid 0.02%, bin-double-sided 0.3% volume error;
+  all 6 models pass smoke. Document any deliberate gaps (like the with-lid
+  lid seat) in the model file's doc comment and the README table.
