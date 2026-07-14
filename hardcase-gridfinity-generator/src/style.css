@@ -1,0 +1,102 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  background: #16181d;
+  color: #d6dae0;
+}
+
+#app {
+  display: flex;
+  height: 100vh;
+}
+
+#sidebar {
+  width: 320px;
+  flex: none;
+  padding: 16px;
+  overflow-y: auto;
+  background: #1e2128;
+  border-right: 1px solid #2c313a;
+}
+
+#sidebar h1 {
+  font-size: 18px;
+  margin: 0 0 16px;
+}
+
+#model-description {
+  font-size: 12px;
+  color: #8b93a0;
+}
+
+#viewport {
+  flex: 1;
+  min-width: 0;
+}
+
+.field {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.field span {
+  display: block;
+  margin-bottom: 3px;
+  color: #a8b0bc;
+}
+
+.field .unit {
+  display: inline;
+  margin-left: 4px;
+  color: #667;
+}
+
+.field input,
+.field select {
+  width: 100%;
+  padding: 6px 8px;
+  background: #14161b;
+  color: #d6dae0;
+  border: 1px solid #2c313a;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+#actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+#actions button {
+  flex: 1;
+  padding: 8px;
+  background: #3a6ea5;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+#actions button:disabled {
+  background: #2c313a;
+  color: #667;
+  cursor: wait;
+}
+
+#status {
+  margin-top: 12px;
+  font-size: 12px;
+  color: #8b93a0;
+  white-space: pre-wrap;
+}
+
+#status.error {
+  color: #e07777;
+}

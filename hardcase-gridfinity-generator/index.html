@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hardcase Gridfinity Generator</title>
+  </head>
+  <body>
+    <div id="app">
+      <aside id="sidebar">
+        <h1>Hardcase Gridfinity</h1>
+        <label class="field">
+          <span>Model</span>
+          <select id="model-select"></select>
+        </label>
+        <p id="model-description"></p>
+        <form id="params-form"></form>
+        <div id="actions">
+          <button id="download-stl" type="button">Download STL</button>
+          <button id="download-step" type="button">Download STEP</button>
+        </div>
+        <div id="status">loading CAD kernel…</div>
+      </aside>
+      <main id="viewport"></main>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
