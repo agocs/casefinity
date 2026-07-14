@@ -59,14 +59,15 @@ function buildLid(p: ParamValues): Shape3D {
     try {
       const fontSize = 8;
       const engraveDepth = 0.5;
-      // Centre the text on the lid: drawText starts at (startX, startY),
-      // so offset by half the approximate text width for "TOP" (~24mm).
+      // Centre the text on the lid: sketchText with plane origin at the
+      // lid centre and startX/startY offsets for approximate centering.
+      // "TOP" at 8pt LiberationSans is ~18mm wide, so offset left by half.
       const cx = (xMin + xMax) / 2;
       const cy = (yMin + yMax) / 2;
       const textDrawing = drawText(label, {
         fontFamily: "LiberationSans",
         fontSize,
-        startX: cx - 12,
+        startX: cx - 20,
         startY: cy - fontSize / 2,
       });
       const textSketch = textDrawing.sketchOnPlane("XY", z1 - engraveDepth) as Sketch;
