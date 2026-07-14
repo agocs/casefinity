@@ -1,6 +1,7 @@
-import { draw } from "replicad";
+import { draw, drawText } from "replicad";
 import type { Shape3D, Sketch } from "replicad";
 import type { ModelDef, ParamValues } from "./types.ts";
+import { textParam } from "./types.ts";
 import { binParams, buildBinBody, withDefaults } from "./bin-common.ts";
 
 /**
@@ -15,9 +16,11 @@ import { binParams, buildBinBody, withDefaults } from "./bin-common.ts";
  * The lid seat is cut into the bin walls by subtracting the lid from the body,
  * so the two parts no longer interpenetrate (was ~216 mm³).
  *
+ * "TOP" is engraved on the lid's top face using the bundled LiberationSans
+ * font (loaded by the worker / smoke bootstrap).
+ *
  * Not yet ported (top-face cosmetic detail): the lid's rounded top corners and
- * edge chamfers, the scalloped +X rail, the lid lock notches, and the engraved
- * "TOP" label (the last needs a bundled font).
+ * edge chamfers, the scalloped +X rail, and the lid lock notches.
  */
 
 function buildLid(p: ParamValues): Shape3D {
@@ -36,6 +39,8 @@ function buildLid(p: ParamValues): Shape3D {
   const yMax = d / 2 - t - p.lidClear; // under the pull tab
   const rampRun = 8.3;
   const rampDrop = 1.5;
+  const lidLen = xMax - xMin;
+  const lidWid = yMax - yMin;
 
   // profile in (y, z), extruded along +X
   const profile = draw([yMin, z0])
@@ -44,22 +49,49 @@ function buildLid(p: ParamValues): Shape3D {
     .lineTo([yMin + rampRun, z1])
     .lineTo([yMin, z1 - rampDrop])
     .close();
-  return (profile.sketchOnPlane("YZ", xMin) as Sketch).extrude(
-    xMax - xMin,
+  let lid = (profile.sketchOnPlane("YZ", xMin) as Sketch).extrude(
+    lidLen,
   ) as Shape3D;
+
+  // Engrave the label on the top face
+  const label = textParam(p, "lidLabel", "TOP");
+  if (label) {
+    try {
+      const fontSize = 8;
+      const engraveDepth = 0.5;
+      // Centre the text on the lid: drawText starts at (startX, startY),
+      // so offset by half the approximate text width for "TOP" (~24mm).
+      const cx = (xMin + xMax) / 2;
+      const cy = (yMin + yMax) / 2;
+      const textDrawing = drawText(label, {
+        fontFamily: "LiberationSans",
+        fontSize,
+        startX: cx - 12,
+        startY: cy - fontSize / 2,
+      });
+      const textSketch = textDrawing.sketchOnPlane("XY", z1 - engraveDepth) as Sketch;
+      lid = lid.cut(textSketch.extrude(engraveDepth + 0.1) as Shape3D);
+    } catch (_err) {
+      // Text ops can fail if the font isn't loaded; skip engraving gracefully
+      console.warn("Lid text engraving failed — skipping");
+    }
+  }
+
+  return lid;
 }
 
 export const binWithLid: ModelDef = {
   id: "bin-with-lid",
   name: "Bin with lid",
   description:
-    "Bin plus a sliding lid that tucks under the pull tab and locks into " +
-    "the walls. Lid seat and label engraving still to come.",
+    "Bin plus a sliding lid that tucks under the pull tab. " +
+    "Optional engraved label on the lid.",
   params: [
     ...withDefaults(binParams, { pullHoleLength: 12 }),
     { key: "lidThick", fusionName: "LID_THICK", label: "Lid thickness", default: 3, unit: "mm", min: 1, max: 6, step: 0.5 },
     { key: "lidClear", fusionName: "LID_CLEAR", label: "Lid clearance", default: 0.1, unit: "mm", min: 0, max: 0.5, step: 0.05 },
     { key: "lidLockOffset", fusionName: "LID_LOCK_OFFSET", label: "Lid lock offset", default: 0.2, unit: "mm", min: 0, max: 1, step: 0.1 },
+    { key: "lidLabel", fusionName: "LID_LABEL", type: "text", label: "Lid label", default: "TOP" },
   ],
   build(p) {
     const lid = buildLid(p);

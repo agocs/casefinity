@@ -16,10 +16,18 @@ globalThis.__dirname = dirname(
 const { default: initOpenCascade } = await import(
   "replicad-opencascadejs/src/replicad_single.js"
 );
-const { setOC, measureVolume } = await import("replicad");
+const { setOC, measureVolume, loadFont } = await import("replicad");
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 console.log("loading OCCT kernel…");
 setOC(await initOpenCascade());
+
+// Load the bundled font for lid text engraving (smoke tests need it)
+const fontBuf = readFileSync(
+  fileURLToPath(new URL("../src/assets/LiberationSans-Regular.ttf", import.meta.url)),
+).buffer;
+await loadFont(fontBuf, "LiberationSans");
 
 const { models, defaultValues } = await import("../src/models/index.ts");
 
@@ -29,7 +37,7 @@ const expected = {
   perimeter: { x: 350, y: 250, z: 110 },
   "smooth-perimeter": { x: 350, y: 250, z: 110 },
   "bin-no-lid": { x: 46.3, y: 46.3, z: 115, volume: 28618 },
-  "bin-with-lid": { x: 46.3, y: 46.3, z: 115, volume: 33718 },
+  "bin-with-lid": { x: 46.3, y: 46.3, z: 115, volume: 33644 },
   // volume = GT total (body 68178 + two lids 9596 + 9577); smoke sums all shapes.
   "bin-double-sided": { x: 61.3, y: 61.3, z: 115, volume: 87351 },
   "perimeter-template": { x: 350, y: 250, z: 110 },
