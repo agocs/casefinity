@@ -1,5 +1,6 @@
 import initOpenCascade from "replicad-opencascadejs/src/replicad_single.js";
 import opencascadeWasm from "replicad-opencascadejs/src/replicad_single.wasm?url";
+import fontUrl from "../assets/LiberationSans-Regular.ttf?url";
 import { setOC, loadFont } from "replicad";
 import type { Shape3D } from "replicad";
 import { expose } from "comlink";
@@ -13,7 +14,7 @@ function init(): Promise<void> {
     const oc = await initOpenCascade({ locateFile: () => opencascadeWasm });
     setOC(oc as Parameters<typeof setOC>[0]);
     // Load the bundled font for lid text engraving
-    const fontResp = await fetch(new URL("../assets/LiberationSans-Regular.ttf", import.meta.url));
+    const fontResp = await fetch(fontUrl);
     const fontBuf = await fontResp.arrayBuffer();
     await loadFont(fontBuf, "LiberationSans");
   })();
