@@ -67,7 +67,7 @@ function buildLid(p: ParamValues): Shape3D {
       const textDrawing = drawText(label, {
         fontFamily: "LiberationSans",
         fontSize,
-        startX: cx - 20,
+        startX: cx + 10,
         startY: cy - fontSize / 2,
       });
       const textSketch = textDrawing.sketchOnPlane("XY", z1 - engraveDepth) as Sketch;
