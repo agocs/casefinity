@@ -59,17 +59,17 @@ function buildLid(p: ParamValues): Shape3D {
     try {
       const fontSize = 8;
       const engraveDepth = 0.5;
-      // Centre the text on the lid: sketchText with plane origin at the
-      // lid centre and startX/startY offsets for approximate centering.
-      // "TOP" at 8pt LiberationSans is ~18mm wide, so offset left by half.
+      // Centre the text on the lid using the text's bounding box
       const cx = (xMin + xMax) / 2;
       const cy = (yMin + yMax) / 2;
       const textDrawing = drawText(label, {
         fontFamily: "LiberationSans",
         fontSize,
-        startX: cx + 10,
-        startY: cy - fontSize / 2,
+        startX: 0,
+        startY: 0,
       });
+      const bb = textDrawing.boundingBox;
+      textDrawing.translate(cx - bb.center[0], cy - bb.center[1]);
       const textSketch = textDrawing.sketchOnPlane("XY", z1 - engraveDepth) as Sketch;
       lid = lid.cut(textSketch.extrude(engraveDepth + 0.1) as Shape3D);
     } catch (_err) {
