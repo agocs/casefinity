@@ -69,7 +69,11 @@ function buildLid(p: ParamValues): Shape3D {
         startY: 0,
       });
       const bb = textDrawing.boundingBox;
-      textDrawing.translate(cx - bb.center[0], cy - bb.center[1]);
+      // Compute true geometric centre from the bounding box corners
+      const [bbMin, bbMax] = bb.bounds;
+      const textCX = (bbMin[0] + bbMax[0]) / 2;
+      const textCY = (bbMin[1] + bbMax[1]) / 2;
+      textDrawing.translate(cx - textCX, cy - textCY);
       const textSketch = textDrawing.sketchOnPlane("XY", z1 - engraveDepth) as Sketch;
       lid = lid.cut(textSketch.extrude(engraveDepth + 0.1) as Shape3D);
     } catch (_err) {
