@@ -1,11 +1,11 @@
-# Cloudflare Pages config for the Hardcase Gridfinity generator (fully static).
-# This file lives in the project root directory (hardcase-gridfinity-generator/),
-# which is where `wrangler pages deploy` runs, so `dist` below is relative to here.
+# Cloudflare Worker (Static Assets) config for the Hardcase Gridfinity generator.
+# The app is fully static, so this is an "assets-only" Worker: there is no `main`
+# script — the Worker just serves the Vite build output in dist/.
 #
-# `pages_build_output_dir` is what tells Wrangler to treat this as a Pages
-# project (and to read `name` for `wrangler pages deploy`). No compatibility
-# flags / bindings are needed — the site has no Pages Functions.
+# Deploy command (in the Cloudflare build settings): npx wrangler deploy
 
-name = "hardcase-gridfinity-generator"
-pages_build_output_dir = "dist"
+name = "casefinity"
 compatibility_date = "2025-06-01"
+
+[assets]
+directory = "./dist"

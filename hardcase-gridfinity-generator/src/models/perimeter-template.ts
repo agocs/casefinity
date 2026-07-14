@@ -1,96 +1,103 @@
-import type { ModelDef, ParamValues } from "./types.ts";
 import { drawRoundedRectangle } from "replicad";
 import type { Shape3D, Sketch } from "replicad";
-import { perimeterParams } from "./perimeter.ts";
+import type { ModelDef, ParamDef, ParamValues } from "./types.ts";
 import { box } from "./bin-common.ts";
 
 /**
- * Port of Hardcase_Gridfinity_Perimeter_Template.step — two 1mm-thin
- * cross-section slices through the HARD CASE SHELL, arranged at right
- * angles. Each slice is a D-shaped profile ~10mm thick showing the case
- * wall: rounded bottom, straight tapered sides.
+ * Port of Hardcase_Gridfinity_Perimeter_Template.f3d — two 1mm (TEST_THICK)
+ * "test print" slices through the HARD CASE wall, one across the width and one
+ * across the length. Each is a closed-frame cross-section: two tapered walls
+ * joined by a rounded floor and a top cap, TEST_OFFSET (10mm) thick — you print
+ * them to check the case wall profile / taper / bottom radius before printing
+ * bins.
  *
- * Ground truth: 2 solids, volumes ~6,646 and ~8,646 mm³.
+ * Built by slicing a case shell (tapered walls + rounded-fillet floor + top cap)
+ * through its CENTRE in each direction — a centre cut hits the two perpendicular
+ * walls plus the floor and cap; a cut at a wall would only give a flat panel.
+ * The two slices are then moved to opposite edges so they don't overlap.
+ *
+ * Ground truth: 2 solids, ~6,646 and ~8,646 mm³ (compared in a different
+ * coordinate frame, so smoke checks the bounding box only).
  */
 
-function deg(d: number): number { return (d * Math.PI) / 180; }
+const deg = (d: number): number => (d * Math.PI) / 180;
 
-/** Build the case shell wall: a hollow box with tapered sides and a
- * rounded bottom, ~10mm thick. */
-function caseShell(p: ParamValues): Shape3D {
-  const L = p.overallLength;   // 350
-  const W = p.overallWidth;    // 250
-  const H = p.overallHeight;   // 110
-  const R = p.bottomCornerRadius; // 19.05
-  const t = 10.05; // case wall stroke at the bottom
-  const taper = Math.tan(deg(p.sideWallTaper)); // ~tan(2°)
-
-  // Outer: shrinks from L×W at z=H down to (L-2*H*taper)×(W-2*H*taper) at z=0,
-  // with the bottom R mm pulled further inward by the fillet.
-  // Inner: same shape, offset inward by t on all sides.
-
-  function outerRect(z: number): { len: number; wid: number; rad: number } {
-    const shrink = 2 * (H - z) * taper;
-    // Fillet inset at height z
-    let fillet = 0;
-    if (z < R) fillet = 2 * (R - Math.sqrt(R * R - (R - z) * (R - z)));
-    return {
-      len: L - shrink - fillet,
-      wid: W - shrink - fillet,
-      rad: Math.max(R, 0.5),
-    };
-  }
-
-  function innerRect(z: number): { len: number; wid: number; rad: number } {
-    const o = outerRect(z);
-    return {
-      len: o.len - 2 * t,
-      wid: o.wid - 2 * t,
-      rad: Math.max(R - t, 0.5),
-    };
-  }
-
-  function sketchAt(z: number, rect: { len: number; wid: number; rad: number }): Sketch {
-    return drawRoundedRectangle(rect.len, rect.wid, rect.rad).sketchOnPlane("XY", z) as Sketch;
-  }
-
-  // Outer solid: loft from z=0 to z=H
-  const outerSolid = (sketchAt(0, outerRect(0)).loftWith(sketchAt(H, outerRect(H))) as Shape3D);
-
-  // Inner solid: same shape, offset inward by t
-  const innerSolid = (sketchAt(0, innerRect(0)).loftWith(sketchAt(H, innerRect(H))) as Shape3D);
-
-  return outerSolid.cut(innerSolid);
+/** Inward pull of the outer wall at height z from the case bottom-corner radius. */
+function filletInset(z: number, r: number): number {
+  return r > 0 && z < r ? r - Math.sqrt(r * r - (r - z) * (r - z)) : 0;
 }
+
+/** Outer case footprint at height z, inset inward by `inset` (0 = outer face). */
+function outerAt(z: number, inset: number, p: ParamValues): Sketch {
+  const shrinkL = 2 * (p.overallHeight - z) * Math.tan(deg(p.frontWallTaper));
+  const shrinkW = 2 * (p.overallHeight - z) * Math.tan(deg(p.sideWallTaper));
+  const fillet = 2 * filletInset(z, p.bottomCornerRadius);
+  const len = Math.max(p.overallLength - shrinkL - fillet - 2 * inset, 1);
+  const wid = Math.max(p.overallWidth - shrinkW - fillet - 2 * inset, 1);
+  const rad = Math.max(p.bottomCornerRadius - inset, 0.5);
+  return drawRoundedRectangle(len, wid, rad).sketchOnPlane("XY", z) as Sketch;
+}
+
+/** Tapered case box (inset from the outer face by `inset`) as a solid: a short
+ * fillet loft over the bottom radius fused to a straight body loft above, so the
+ * bottom rounds inward without the mixed loft splining the body straight. */
+function caseSolid(inset: number, p: ParamValues): Shape3D {
+  const r = p.bottomCornerRadius;
+  const [base, ...rest] = [0, 0.3, 0.6, 1].map((f) => outerAt(f * r, inset, p));
+  const fillet = base.loftWith(rest) as Shape3D;
+  const body = outerAt(r, inset, p).loftWith(outerAt(p.overallHeight, inset, p)) as Shape3D;
+  return fillet.fuse(body);
+}
+
+/** The case shell as the template models it: a closed frame in cross-section —
+ * tapered walls with a TEST_OFFSET-thick rounded floor AND a matching top cap
+ * (the cross-sections show floor + two walls + a full-width top band). */
+function caseShell(p: ParamValues): Shape3D {
+  const t = p.testOffset;
+  const H = p.overallHeight;
+  const outer = caseSolid(0, p);
+  // Trim the inner solid to z ∈ [t, H−t] so the bottom `t` (floor) and the top
+  // `t` (cap) both stay solid after the cut.
+  const inner = caseSolid(t, p).intersect(
+    box(p.overallLength + 100, p.overallWidth + 100, t, H - t),
+  );
+  return outer.cut(inner) as Shape3D;
+}
+
+const templateParams: ParamDef[] = [
+  { key: "overallLength", fusionName: "OVERALL_LENGTH", label: "Case length", default: 350, unit: "mm", min: 60, max: 900, step: 1 },
+  { key: "overallWidth", fusionName: "OVERALL_WIDTH", label: "Case width", default: 250, unit: "mm", min: 60, max: 900, step: 1 },
+  { key: "overallHeight", fusionName: "Overall_HT", label: "Case depth", default: 110, unit: "mm", min: 10, max: 400, step: 1 },
+  { key: "bottomCornerRadius", fusionName: "BOTTOM_CORNER_RADIUS", label: "Bottom corner radius", default: 19.05, unit: "mm", min: 1, max: 60, step: 0.05 },
+  { key: "sideWallTaper", fusionName: "SIDE_WALL_TAPER", label: "Side wall taper", default: 1, unit: "deg", min: 0, max: 15, step: 0.5 },
+  { key: "frontWallTaper", fusionName: "FRONT_WALL_TAPER", label: "Front wall taper", default: 1, unit: "deg", min: 0, max: 15, step: 0.5 },
+  { key: "testOffset", fusionName: "TEST_OFFSET", label: "Wall thickness", default: 10, unit: "mm", min: 2, max: 30, step: 0.5 },
+  { key: "testThick", fusionName: "TEST_THICK", label: "Slice thickness", default: 1, unit: "mm", min: 0.5, max: 5, step: 0.5 },
+];
 
 export const perimeterTemplate: ModelDef = {
   id: "perimeter-template",
   name: "Perimeter template",
   description:
-    "Two 1mm cross-section slices of the hard case shell, arranged at " +
-    "right angles. D-shaped profiles showing the case wall thickness.",
-  params: perimeterParams,
+    "Two 1mm cross-section slices of the hard case wall — one across the width, " +
+    "one across the length — for test-fitting the wall profile against the case.",
+  params: templateParams,
   build(p: ParamValues): Shape3D[] {
     const shell = caseShell(p);
-    const w = p.overallLength;
-    const d = p.overallWidth;
-    const h = p.overallHeight;
-    const t = 10.05;
+    const L = p.overallLength;
+    const W = p.overallWidth;
+    const H = p.overallHeight;
+    const tt = p.testThick;
 
-    // Wall centres: halfway between outer edge and inner surface
-    const xCenter = w / 2 - t / 2;
-    const yCenter = d / 2 - t / 2;
+    // Width cross-section: a thin slab across the length (centre cut hits the two
+    // side walls + floor). Length cross-section: a thin slab across the width.
+    const widthSlice = box(tt, W + 4, 0, H).intersect(shell) as Shape3D;
+    const lengthSlice = box(L + 4, tt, 0, H).intersect(shell) as Shape3D;
 
-    // Side wall slice: 1mm thick in Y, at the +Y wall centre
-    const sideSlice = box(w, 1, 0, h)
-      .translate(0, yCenter, 0)
-      .intersect(shell);
-
-    // End wall slice: 1mm thick in X, at the +X wall centre
-    const endSlice = box(1, d, 0, h)
-      .translate(xCenter, 0, 0)
-      .intersect(shell);
-
-    return [endSlice as Shape3D, sideSlice as Shape3D];
+    // Move them to opposite edges so the two test pieces don't overlap.
+    return [
+      widthSlice.translate(-(L / 2 - tt / 2), 0, 0) as Shape3D,
+      lengthSlice.translate(0, W / 2 - tt / 2, 0) as Shape3D,
+    ];
   },
 };

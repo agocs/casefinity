@@ -12,9 +12,12 @@ import { binParams, buildBinBody, withDefaults } from "./bin-common.ts";
  * one side and into a shallow wall groove on the entry side, with a ramped
  * top surface on the entry edge.
  *
- * Not yet ported (≈1% of assembly volume — see README porting status):
- * - the lid seat cut into the bin walls/bosses and the scalloped +X rail
- * - lid lock notches and the engraved "TOP" label
+ * The lid seat is cut into the bin walls by subtracting the lid from the body,
+ * so the two parts no longer interpenetrate (was ~216 mm³).
+ *
+ * Not yet ported (top-face cosmetic detail): the lid's rounded top corners and
+ * edge chamfers, the scalloped +X rail, the lid lock notches, and the engraved
+ * "TOP" label (the last needs a bundled font).
  */
 
 function buildLid(p: ParamValues): Shape3D {
@@ -59,6 +62,10 @@ export const binWithLid: ModelDef = {
     { key: "lidLockOffset", fusionName: "LID_LOCK_OFFSET", label: "Lid lock offset", default: 0.2, unit: "mm", min: 0, max: 1, step: 0.1 },
   ],
   build(p) {
-    return [buildBinBody(p), buildLid(p)];
+    const lid = buildLid(p);
+    // Cut the lid's footprint out of the body so the lid seats in a groove in
+    // the walls instead of interpenetrating them.
+    const body = buildBinBody(p).cut(lid.clone()) as Shape3D;
+    return [body, lid];
   },
 };

@@ -30,7 +30,8 @@ const expected = {
   "smooth-perimeter": { x: 350, y: 250, z: 110 },
   "bin-no-lid": { x: 46.3, y: 46.3, z: 115, volume: 28618 },
   "bin-with-lid": { x: 46.3, y: 46.3, z: 115, volume: 33718 },
-  "bin-double-sided": { x: 61.3, y: 61.3, z: 115, volume: 68178 },
+  // volume = GT total (body 68178 + two lids 9596 + 9577); smoke sums all shapes.
+  "bin-double-sided": { x: 61.3, y: 61.3, z: 115, volume: 87351 },
   "perimeter-template": { x: 350, y: 250, z: 110 },
 };
 const VOLUME_TOLERANCE = 0.005; // 0.5%
@@ -41,12 +42,20 @@ for (const model of models) {
   const result = model.build(defaultValues(model));
   const shapes = Array.isArray(result) ? result : [result];
 
+  // Measure the bounding box from the mesh (the geometry that actually gets
+  // exported/rendered). OCCT's shape.boundingBox over-estimates for BSpline
+  // surfaces — a lofted/filleted solid reports its control-point extent, not
+  // the tight box — so it's unreliable for the perimeter-template slices.
   let min = [Infinity, Infinity, Infinity];
   let max = [-Infinity, -Infinity, -Infinity];
   for (const shape of shapes) {
-    const [lo, hi] = shape.boundingBox.bounds;
-    min = min.map((v, i) => Math.min(v, lo[i]));
-    max = max.map((v, i) => Math.max(v, hi[i]));
+    const { vertices } = shape.mesh({ tolerance: 0.05, angularTolerance: 15 });
+    for (let i = 0; i < vertices.length; i += 3) {
+      for (let k = 0; k < 3; k++) {
+        min[k] = Math.min(min[k], vertices[i + k]);
+        max[k] = Math.max(max[k], vertices[i + k]);
+      }
+    }
   }
   const dims = max.map((v, i) => v - min[i]);
   console.log(
