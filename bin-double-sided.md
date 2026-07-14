@@ -1,11 +1,19 @@
 ---
 name: bin-double-sided
-description: WIP plan + ground-truth measurements for porting the Double Sided bin (last complex model)
+description: DONE — ported to src/models/bin-double-sided.ts (volume 0.3% off, smoke passes)
 metadata: 
   node_type: memory
   type: project
   originSessionId: 842fd133-22d2-4572-b373-1785271c3077
 ---
+
+✅ **DONE.** Ported to `src/models/bin-double-sided.ts`. All 5 models pass smoke.
+
+The hopper is approximated with a loft cut (truncated pyramid) instead of a true fillet; volume is within 0.3% of ground truth. The original plan below is preserved for reference.
+
+---
+
+## Original plan (for reference)
 
 Porting `Hardcase_Gridfinity_Bin Double Sided.step` (part of [[hardcase-gridfinity-generator]]). NOT started as a file yet; the `bin-common` refactor that enables it IS done and verified.
 

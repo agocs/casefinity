@@ -39,8 +39,8 @@ npm run smoke    # build all models in Node, verify against ground truth
 | Perimeter | U-channel border + grid bumps + dovetail 4-piece split + configurable dividers + case bottom-radius + print clearances (Stages 1-5) | bbox exact at nominal; fused volume 306k vs 405k (gap = flat-floor foot vs gusset ramp + design-specific divider layout); prints as 4 dovetailed pieces that seat in the case |
 | Bin, no lid | complete | volume within 0.02% |
 | Bin with lid | bin complete; lid v1 (plate + ramp) | fused volume within 0.2%; lid seat cut, scalloped rail, lock notches and "TOP" engraving TODO |
-| Bin, double sided | IN PROGRESS — bin-common refactored (`addInterlockRibs`, `addPullTab` extracted). Next: open tube + central floor with hopper fillet (BOTTOM_FILLET_FACTOR≈2.3, r≈18) + 2 lids. GT: 4×4 body 61.3² + 2 lids 57.4×58.4×3.3 | — |
-| Perimeter template | TODO — 2 thin 1mm test cross-section strips of the wall profile (lowest value) | — |
+| Bin, double sided | complete — open tube + central floor with hopper (loft-cut approximation, volume 0.3% off) + interlock ribs + pull tab + 2 inset lids | bbox exact; body volume within 0.3% |
+| Perimeter template | complete — two 1mm cross-section slices of the wall profile (at cavity edges) | bbox exact; no volume check (truth is in different coordinate frame) |
 | Smooth perimeter (42 grid) | complete — reuses perimeter build (42mm grid, smooth/no bumps) | bbox exact; same foot/divider simplifications as perimeter |
 
 Known gap: the with-lid assembly renders the lid in place, but since the lid

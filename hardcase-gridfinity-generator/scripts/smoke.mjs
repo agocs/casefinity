@@ -30,6 +30,8 @@ const expected = {
   "smooth-perimeter": { x: 350, y: 250, z: 110 },
   "bin-no-lid": { x: 46.3, y: 46.3, z: 115, volume: 28618 },
   "bin-with-lid": { x: 46.3, y: 46.3, z: 115, volume: 33718 },
+  "bin-double-sided": { x: 61.3, y: 61.3, z: 115, volume: 68178 },
+  "perimeter-template": { x: 350, y: 250, z: 110 },
 };
 const VOLUME_TOLERANCE = 0.005; // 0.5%
 
