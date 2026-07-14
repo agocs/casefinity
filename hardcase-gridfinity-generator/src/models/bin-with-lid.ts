@@ -59,21 +59,29 @@ function buildLid(p: ParamValues): Shape3D {
     try {
       const fontSize = 8;
       const engraveDepth = 0.5;
-      // Centre the text on the lid using the text's bounding box
+      // Centre the text on the lid using the text's bounding box.
+      // NOTE: Drawing.translate() is broken (doesn't move geometry),
+      // so we measure first, then draw at the computed position.
       const cx = (xMin + xMax) / 2;
       const cy = (yMin + yMax) / 2;
-      const textDrawing = drawText(label, {
+      // Measure the text at origin to find its centre offset
+      const measureDrawing = drawText(label, {
         fontFamily: "LiberationSans",
         fontSize,
         startX: 0,
         startY: 0,
       });
-      const bb = textDrawing.boundingBox;
-      // Compute true geometric centre from the bounding box corners
+      const bb = measureDrawing.boundingBox;
       const [bbMin, bbMax] = bb.bounds;
       const textCX = (bbMin[0] + bbMax[0]) / 2;
       const textCY = (bbMin[1] + bbMax[1]) / 2;
-      textDrawing.translate(cx - textCX, cy - textCY);
+      // Now draw at the correct position
+      const textDrawing = drawText(label, {
+        fontFamily: "LiberationSans",
+        fontSize,
+        startX: cx - textCX,
+        startY: cy - textCY,
+      });
       const textSketch = textDrawing.sketchOnPlane("XY", z1 - engraveDepth) as Sketch;
       lid = lid.cut(textSketch.extrude(engraveDepth + 0.1) as Shape3D);
     } catch (_err) {
