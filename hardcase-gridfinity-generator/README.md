@@ -12,7 +12,17 @@ npm install
 npm run dev      # dev server
 npm run build    # type-check + production build (dist/)
 npm run smoke    # build all models in Node, verify against ground truth
+npm run scaling  # parametric invariant harness (see below)
 ```
+
+`npm run scaling` builds every model across a spread of parameter values and
+asserts invariants that must hold at *any* parameters — catching hardcoded
+constants and non-scaling logic without a Fusion round-trip (e.g. "the
+double-sided floor tracks OVERALL_HT/2", "every perimeter piece is one clean
+solid", "bbox = the parameter formula"). Each model runs in its own process
+(the OCCT WASM heap is small). It's a regression gate: green unless a *new*
+invariant breaks; a couple of pre-existing fragilities are marked `XFAIL`
+(see Known limitations).
 
 ## Architecture
 
@@ -43,9 +53,17 @@ npm run smoke    # build all models in Node, verify against ground truth
 | Perimeter template | complete — two 1mm test slices of the case wall, each a closed frame (rounded floor + tapered walls + top cap), across the width and the length | bbox exact; per-slice volume within ~1% |
 | Smooth perimeter (42 grid) | complete — reuses perimeter build (42mm grid, smooth/no bumps) | bbox exact; same foot/divider simplifications as perimeter |
 
-Known gap: the with-lid assembly renders the lid in place, but since the lid
-seat is not yet cut into the bin, lid and bin slightly interpenetrate
-(~200 mm^3). Exports should eventually offer one file per part anyway.
+## Known limitations
+
+- **Perimeter split — OCCT boolean fragility at some dimensions.** The dovetail
+  4-piece split degenerates at a few exact dimensions: a zero-volume solid at
+  350×250-grid `250×180`, or two *empty* long-side pieces at 42-grid `300×300`.
+  A ~1 mm change to `OVERALL_LENGTH`/`WIDTH` avoids it (it's an exact-coincidence
+  sensitivity in the boolean, not a formula error), and replicad exposes no
+  fuzzy-boolean tolerance to force robustness. Flagged as `XFAIL` in
+  `npm run scaling`. A proper fix needs a boolean-robustness pass on the split.
+- The with-lid assembly's remaining lid detail (rounded top corners, scalloped
+  +X rail, lock notches) is cosmetic top-face geometry and not yet modelled.
 
 ## Reverse-engineering workflow (how the ports were made)
 
