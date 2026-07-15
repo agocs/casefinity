@@ -55,15 +55,17 @@ invariant breaks; a couple of pre-existing fragilities are marked `XFAIL`
 
 ## Known limitations
 
-- **Perimeter split — OCCT boolean fragility at some dimensions.** The dovetail
-  4-piece split degenerates at a few exact dimensions: a zero-volume solid at
-  350×250-grid `250×180`, or two *empty* long-side pieces at 42-grid `300×300`.
-  A ~1 mm change to `OVERALL_LENGTH`/`WIDTH` avoids it (it's an exact-coincidence
-  sensitivity in the boolean, not a formula error), and replicad exposes no
-  fuzzy-boolean tolerance to force robustness. Flagged as `XFAIL` in
-  `npm run scaling`. A proper fix needs a boolean-robustness pass on the split.
 - The with-lid assembly's remaining lid detail (rounded top corners, scalloped
   +X rail, lock notches) is cosmetic top-face geometry and not yet modelled.
+
+Previously flagged and now fixed: the perimeter dovetail split used to degenerate
+at narrow/square dimensions (a zero-volume flake at `250×180`, two *empty*
+long-side pieces at 42-grid `300×300`). Root cause was not the boolean but the
+divider ribs — near the filleted base the tapered wall curves inward past the
+grid-bump line, which inverted the rib's Y-Z profile into a self-intersecting
+polygon and blew up the fuse. `addDividers` now clamps the rib's outer edge to
+stay just outside the inner edge, so the profile is always valid; the two former
+failure points are regression variants in `npm run scaling`.
 
 ## Reverse-engineering workflow (how the ports were made)
 

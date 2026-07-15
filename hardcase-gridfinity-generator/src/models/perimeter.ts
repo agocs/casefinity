@@ -184,12 +184,21 @@ function addDividers(shape: Shape3D, p: ParamValues, signY: 1 | -1): Shape3D {
   const centers = dividerCenters(p);
   if (!centers.length) return shape;
   const h = p.overallHeight;
-  const inner = signY * (cavityDims(p).width / 2 - p.gridBump); // bump tip
+  const innerMag = cavityDims(p).width / 2 - p.gridBump; // bump tip (magnitude)
+  const inner = signY * innerMag;
   const zs = [0, 0.3, 0.6, 1].map((f) => f * p.bottomCornerRadius).concat(h);
   // Profile in the Y-Z plane: inner edge straight at `inner`, outer edge tracing
-  // the wall from the base fillet up to the mouth.
+  // the wall from the base fillet up to the mouth. Near the filleted base the
+  // tapered wall can curve inward PAST the bump line (outerInnerY < innerMag) —
+  // for a narrow case that inverts the profile into a self-intersecting polygon
+  // and the rib fuse degenerates (zero-volume flake, or the whole piece blows up
+  // to empty). Clamp the outer edge to stay at least `minGap` outside the inner
+  // edge so the profile is always a valid simple polygon; the clamp is inactive
+  // wherever the channel is genuinely open, so it never alters a good case.
+  const minGap = 0.5;
+  const outerMag = (z: number) => Math.max(outerInnerY(z, p), innerMag + minGap);
   let prof = draw([inner, 0]);
-  for (const z of zs) prof = prof.lineTo([signY * outerInnerY(z, p), z]);
+  for (const z of zs) prof = prof.lineTo([signY * outerMag(z), z]);
   prof = prof.lineTo([inner, h]);
   const profile = prof.close();
   const ribs = centers

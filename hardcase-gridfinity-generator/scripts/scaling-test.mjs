@@ -182,10 +182,10 @@ const SUITES = {
     ],
   },
   perimeter: {
-    // Known OCCT boolean fragility: at some dimensions the dovetail split leaves
-    // a degenerate/empty solid (a 1 mm nudge avoids it). Marked xfail so the
-    // harness stays a regression gate; see README "Known limitations".
-    xfail: { "overallLength=250 overallWidth=180": "OCCT split coincidence — degenerate 0-vol solid" },
+    // Regression: at 250×180 the divider rib profile used to invert at the
+    // filleted base (outerInnerY < bump tip) and the fuse left a zero-volume
+    // flake; addDividers now clamps the outer edge, so every piece stays one
+    // clean solid. Kept as a variant to guard the fix.
     variants: [{}, { overallLength: 250, overallWidth: 180 }, { overallHeight: 70 }],
     checks: [
       ["shape count (4 dovetail pieces)", shapeCount(4)],
@@ -198,7 +198,9 @@ const SUITES = {
     ],
   },
   "smooth-perimeter": {
-    xfail: { "overallLength=300 overallWidth=300": "OCCT split coincidence — two empty pieces" },
+    // Regression: 300×300 used to leave the two long-side pieces empty (same
+    // divider-profile inversion as the perimeter, here blowing the fuse up to
+    // nothing rather than a flake). Guarded by the addDividers clamp.
     variants: [{}, { overallLength: 300, overallWidth: 300 }],
     checks: [
       ["shape count (4 dovetail pieces)", shapeCount(4)],
