@@ -1,4 +1,4 @@
-import { draw, drawText } from "replicad";
+import { draw, drawText, drawCircle } from "replicad";
 import type { Shape3D, Sketch } from "replicad";
 import type { ModelDef, ParamValues } from "./types.ts";
 import { textParam } from "./types.ts";
@@ -19,8 +19,11 @@ import { binParams, buildBinBody, withDefaults } from "./bin-common.ts";
  * "TOP" is engraved on the lid's top face using the bundled LiberationSans
  * font (loaded by the worker / smoke bootstrap).
  *
- * Not yet ported (top-face cosmetic detail): the lid's rounded top corners and
- * edge chamfers, the scalloped +X rail, and the lid lock notches.
+ * The +X edge carries the rail (see buildLid): the ground-truth lid steps its
+ * +X plate face back and protrudes a rounded bead that runs the slide length
+ * and seats in a groove in the +X wall. The -X edge is the deeper locking
+ * tongue (xMin). Remaining top-face cosmetic detail not yet ported: the lid's
+ * rounded top corners and edge chamfers, and the lid lock notches.
  */
 
 function buildLid(p: ParamValues): Shape3D {
@@ -31,10 +34,18 @@ function buildLid(p: ParamValues): Shape3D {
 
   const z0 = h - p.lidThick - (p.lidLockOffset + p.lidClear);
   const z1 = z0 + p.lidThick;
-  // measured wall engagements at defaults: 0.8 into the -X wall groove,
-  // 0.85 clear of the +X rail
+  // measured wall engagements at defaults: 0.8 into the -X wall groove (the deep
+  // locking tongue), 0.85 clear of the +X wall (the +X rail bead reaches here).
   const xMin = -(w / 2 - t) - 0.8;
-  const xMax = w / 2 - t - 0.85;
+  // +X rail: the ground-truth lid does not run flat to the +X edge — the plate
+  // steps back and a rounded bead (RAIL_PROUD proud, running the full slide
+  // length, centred low) protrudes back out to the wall gap, seating in a groove
+  // in the +X wall. Step the plate edge in by railProud; the bead below adds it
+  // back so the outer extent (and bbox) is unchanged. The body seat-cut forms
+  // the matching groove automatically.
+  const railProud = 0.75;
+  const xRailTip = w / 2 - t - 0.85; // outer face of the rail bead (== old flat edge)
+  const xMax = xRailTip - railProud; // stepped-back plate face
   const yMin = -(d / 2) + p.clear; // entry side: nearly through the wall
   const yMax = d / 2 - t - p.lidClear; // under the pull tab
   const rampRun = 8.3;
@@ -52,6 +63,19 @@ function buildLid(p: ParamValues): Shape3D {
   let lid = (profile.sketchOnPlane("YZ", xMin) as Sketch).extrude(
     lidLen,
   ) as Shape3D;
+
+  // Fuse the +X rail bead: a cylinder along the slide (Y) axis centred on the
+  // stepped plate face, so its inner half merges into the plate and its outer
+  // half is the rounded rail. Centred just above the lid underside (measured
+  // ~0.05 mm up), matching the ground-truth bead height.
+  const railCenterZ = z0 + railProud + 0.05;
+  // "XZ" plane offset d places the sketch at Y=-d and extrudes toward -Y, so
+  // offset -yMax starts the bead at the pull-tab end and runs it back to yMin,
+  // spanning the plate's full [yMin, yMax].
+  const railBead = (drawCircle(railProud)
+    .translate(xMax, railCenterZ)
+    .sketchOnPlane("XZ", -yMax) as Sketch).extrude(lidWid) as Shape3D;
+  lid = lid.fuse(railBead);
 
   // Engrave the label on the top face
   const label = textParam(p, "lidLabel", "TOP");
