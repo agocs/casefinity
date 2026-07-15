@@ -22,8 +22,13 @@ import { binParams, buildBinBody, withDefaults } from "./bin-common.ts";
  * The +X edge carries the rail (see buildLid): the ground-truth lid steps its
  * +X plate face back and protrudes a rounded bead that runs the slide length
  * and seats in a groove in the +X wall. The -X edge is the deeper locking
- * tongue (xMin). Remaining top-face cosmetic detail not yet ported: the lid's
- * rounded top corners and edge chamfers, and the lid lock notches.
+ * tongue (xMin). The top-face edge is rounded over (rounded top corners +
+ * softened top edge), matching the ground truth's top-corner round.
+ *
+ * Note: the "lid lock notches" once listed as TODO are not present in this
+ * ground-truth lid — cross-sectioning shows the entry edge is solid at every
+ * height (module centres included), so they were not modelled. The ground truth
+ * does have a transverse lip+groove near one edge that is not yet ported.
  */
 
 function buildLid(p: ParamValues): Shape3D {
@@ -63,6 +68,18 @@ function buildLid(p: ParamValues): Shape3D {
   let lid = (profile.sketchOnPlane("YZ", xMin) as Sketch).extrude(
     lidLen,
   ) as Shape3D;
+
+  // Rounded top corners / softened top edge: round over the top-face edge loop.
+  // Measured from ground truth: the top face carries rounded corners (~2 mm) in
+  // the top ~0.3 mm and a softened top edge, while the body stays square below.
+  // Applied to the bare plate (before the rail and engraving) so the finder
+  // can't catch the engraving's letter edges. Fillet failures are non-fatal.
+  const topRound = 1.0;
+  try {
+    lid = lid.fillet(topRound, (e) => e.inPlane("XY", z1)) as Shape3D;
+  } catch (_err) {
+    console.warn("Lid top-edge round-over failed — skipping");
+  }
 
   // Fuse the +X rail bead: a cylinder along the slide (Y) axis centred on the
   // stepped plate face, so its inner half merges into the plate and its outer

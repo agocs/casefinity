@@ -37,7 +37,7 @@ const expected = {
   perimeter: { x: 350, y: 250, z: 110 },
   "smooth-perimeter": { x: 350, y: 250, z: 110 },
   "bin-no-lid": { x: 46.3, y: 46.3, z: 115, volume: 28618 },
-  "bin-with-lid": { x: 46.3, y: 46.3, z: 115, volume: 33595 }, // body + lid incl. +X rail and TOP engraving (GT total 33723)
+  "bin-with-lid": { x: 46.3, y: 46.3, z: 115, volume: 33579 }, // body + lid incl. +X rail, rounded top edge, TOP engraving (GT total 33723)
   // volume = GT total (body 68178 + two lids 9596 + 9577); smoke sums all shapes.
   "bin-double-sided": { x: 61.3, y: 61.3, z: 115, volume: 87351 },
   "perimeter-template": { x: 350, y: 250, z: 110 },
