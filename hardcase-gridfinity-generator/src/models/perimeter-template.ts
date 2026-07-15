@@ -1,6 +1,7 @@
 import { drawRoundedRectangle } from "replicad";
 import type { Shape3D, Sketch } from "replicad";
 import type { ModelDef, ParamDef, ParamValues } from "./types.ts";
+import { boolParam } from "./types.ts";
 import { box } from "./bin-common.ts";
 
 /**
@@ -73,6 +74,8 @@ const templateParams: ParamDef[] = [
   { key: "frontWallTaper", fusionName: "FRONT_WALL_TAPER", label: "Front wall taper", default: 1, unit: "deg", min: 0, max: 15, step: 0.5 },
   { key: "testOffset", fusionName: "TEST_OFFSET", label: "Wall thickness", default: 10, unit: "mm", min: 2, max: 30, step: 0.5 },
   { key: "testThick", fusionName: "TEST_THICK", label: "Slice thickness", default: 1, unit: "mm", min: 0.5, max: 5, step: 0.5 },
+  { key: "generateLength", type: "boolean", label: "Generate Length Template", default: true },
+  { key: "generateWidth", type: "boolean", label: "Generate Width Template", default: true },
 ];
 
 export const perimeterTemplate: ModelDef = {
@@ -88,16 +91,24 @@ export const perimeterTemplate: ModelDef = {
     const W = p.overallWidth;
     const H = p.overallHeight;
     const tt = p.testThick;
+    const genLen = boolParam(p, "generateLength", true);
+    const genWid = boolParam(p, "generateWidth", true);
+
+    const pieces: Shape3D[] = [];
 
     // Width cross-section: a thin slab across the length (centre cut hits the two
-    // side walls + floor). Length cross-section: a thin slab across the width.
-    const widthSlice = box(tt, W + 4, 0, H).intersect(shell) as Shape3D;
-    const lengthSlice = box(L + 4, tt, 0, H).intersect(shell) as Shape3D;
+    // side walls + floor).
+    if (genWid) {
+      const widthSlice = box(tt, W + 4, 0, H).intersect(shell) as Shape3D;
+      pieces.push(widthSlice.translate(-(L / 2 - tt / 2), 0, 0) as Shape3D);
+    }
 
-    // Move them to opposite edges so the two test pieces don't overlap.
-    return [
-      widthSlice.translate(-(L / 2 - tt / 2), 0, 0) as Shape3D,
-      lengthSlice.translate(0, W / 2 - tt / 2, 0) as Shape3D,
-    ];
+    // Length cross-section: a thin slab across the width.
+    if (genLen) {
+      const lengthSlice = box(L + 4, tt, 0, H).intersect(shell) as Shape3D;
+      pieces.push(lengthSlice.translate(0, W / 2 - tt / 2, 0) as Shape3D);
+    }
+
+    return pieces;
   },
 };

@@ -8,6 +8,31 @@ export function renderParamsForm(
 ): void {
   form.innerHTML = "";
   for (const param of model.params) {
+    if (param.type === "boolean") {
+      const label = document.createElement("label");
+      label.className = "field checkbox-field";
+
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.name = param.key;
+      input.checked = Boolean(
+        (values as Record<string, unknown>)[param.key] ?? param.default,
+      );
+
+      input.addEventListener("change", () => {
+        (values as Record<string, unknown>)[param.key] = input.checked;
+        onChange({ ...values });
+      });
+
+      const caption = document.createElement("span");
+      caption.className = "checkbox-label";
+      caption.textContent = param.label;
+
+      label.append(input, caption);
+      form.appendChild(label);
+      continue;
+    }
+
     const label = document.createElement("label");
     label.className = "field";
 
@@ -24,10 +49,9 @@ export function renderParamsForm(
       const input = document.createElement("input");
       input.type = "text";
       input.name = param.key;
-      input.value = String(values[param.key] ?? param.default);
+      input.value = String((values as Record<string, unknown>)[param.key] ?? param.default);
 
       input.addEventListener("input", () => {
-        // Store text values as strings inside the ParamValues record
         (values as Record<string, unknown>)[param.key] = input.value;
         onChange({ ...values });
       });
