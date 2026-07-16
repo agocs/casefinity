@@ -18,9 +18,9 @@ import { withDefaults } from "./bin-common.ts";
  */
 export const smoothPerimeter: ModelDef = {
   id: "smooth-perimeter",
-  name: "Smooth Perimeter (42 grid)",
+  name: "Smooth Perimeter (gridfinity interior)",
   description:
-    "Coarse 42 mm-grid liner frame with a smooth (bump-free) inner wall, split " +
+    "Liner frame with a smooth (bump-free) inner wall. Interior is designed to fit a 42mm Gridfinity baseplate. Split " +
     "into four dovetailed pieces. Shares the perimeter frame code.",
   params: withDefaults(perimeterParams, {
     gridSpacing: 42,
