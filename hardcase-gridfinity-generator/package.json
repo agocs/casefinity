@@ -8,10 +8,12 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "smoke": "node scripts/smoke.mjs",
+    "check-3mf": "node scripts/check-3mf.mjs",
     "scaling": "node --expose-gc scripts/scaling-test.mjs"
   },
   "dependencies": {
     "comlink": "^4.4.2",
+    "fflate": "^0.8.2",
     "replicad": "^0.23.1",
     "replicad-opencascadejs": "^0.23.0",
     "replicad-threejs-helper": "^0.23.0",

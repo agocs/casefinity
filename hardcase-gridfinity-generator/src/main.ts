@@ -17,6 +17,8 @@ const form = document.getElementById("params-form") as HTMLFormElement;
 const status = document.getElementById("status")!;
 const stlButton = document.getElementById("download-stl") as HTMLButtonElement;
 const stepButton = document.getElementById("download-step") as HTMLButtonElement;
+const threeMfButton = document.getElementById("download-3mf") as HTMLButtonElement;
+const exportButtons = [stlButton, stepButton, threeMfButton];
 const viewer = new Viewer(document.getElementById("viewport")!);
 const spinner = document.getElementById("spinner")!;
 
@@ -73,20 +75,22 @@ function download(blob: Blob, filename: string): void {
   URL.revokeObjectURL(link.href);
 }
 
-async function exportModel(kind: "stl" | "step"): Promise<void> {
-  stlButton.disabled = stepButton.disabled = true;
+async function exportModel(kind: "stl" | "step" | "3mf"): Promise<void> {
+  for (const b of exportButtons) b.disabled = true;
   setStatus(`exporting ${kind.toUpperCase()}…`);
   try {
     const blob =
       kind === "stl"
         ? await worker.exportSTL(currentModelId, currentValues)
-        : await worker.exportSTEP(currentModelId, currentValues);
+        : kind === "step"
+          ? await worker.exportSTEP(currentModelId, currentValues)
+          : await worker.export3MF(currentModelId, currentValues);
     download(blob, `${currentModelId}.${kind}`);
     setStatus(`${kind.toUpperCase()} exported`);
   } catch (error) {
     setStatus(`export failed: ${error instanceof Error ? error.message : error}`, true);
   } finally {
-    stlButton.disabled = stepButton.disabled = false;
+    for (const b of exportButtons) b.disabled = false;
   }
 }
 
@@ -99,6 +103,7 @@ for (const model of models) {
 select.addEventListener("change", () => selectModel(select.value));
 stlButton.addEventListener("click", () => void exportModel("stl"));
 stepButton.addEventListener("click", () => void exportModel("step"));
+threeMfButton.addEventListener("click", () => void exportModel("3mf"));
 
 // About page toggle
 const aboutPanel = document.getElementById("about-panel")!;

@@ -5,6 +5,7 @@ import type { Shape3D } from "replicad";
 import { expose } from "comlink";
 import { modelById, defaultValues } from "./models";
 import type { ParamValues } from "./models";
+import { build3mf, partNames } from "./three-mf";
 
 let ready: Promise<void> | undefined;
 
@@ -55,6 +56,22 @@ const api = {
   async exportSTEP(modelId: string, params: ParamValues): Promise<Blob> {
     await init();
     return fused(modelId, params).blobSTEP();
+  },
+
+  /**
+   * Export .3mf with each build shape as its own object, so multi-part models
+   * (perimeter pieces, bin body + lids) import as individually separable parts.
+   */
+  async export3MF(modelId: string, params: ParamValues): Promise<Blob> {
+    await init();
+    const shapes = buildShapes(modelId, params);
+    const names = partNames(modelId, shapes.length);
+    const parts = shapes.map((shape, i) => ({
+      name: names[i],
+      mesh: shape.mesh({ tolerance: 0.01, angularTolerance: 30 }),
+    }));
+    const bytes = build3mf(parts, modelId);
+    return new Blob([bytes], { type: "model/3mf" });
   },
 };
 
