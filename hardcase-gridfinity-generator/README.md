@@ -12,8 +12,21 @@ npm install
 npm run dev      # dev server
 npm run build    # type-check + production build (dist/)
 npm run smoke    # build all models in Node, verify against ground truth
+npm run check-3mf # verify .3mf export: package structure + watertight, outward-wound meshes
 npm run scaling  # parametric invariant harness (see below)
 ```
+
+## Exports
+
+The UI offers **STL**, **STEP**, and **3MF** downloads. STL and STEP fuse a
+model's shapes into a single solid. **3MF** keeps them separate: each build
+shape becomes its own `<object>` in the package (see `src/three-mf.ts`), so a
+multi-part model — the four dovetailed perimeter pieces, or a bin body plus its
+lids — imports as individually selectable parts on the slicer plate. Geometry
+is the model's own Z-up space in millimetres (identical to STL), so z=0 sits on
+the plate. `npm run check-3mf` validates every model's package structure and
+confirms each part's mesh is watertight and outward-wound (3MF stores no facet
+normals — orientation is winding-only).
 
 `npm run scaling` builds every model across a spread of parameter values and
 asserts invariants that must hold at *any* parameters — catching hardcoded
@@ -31,7 +44,9 @@ invariant breaks; a couple of pre-existing fragilities are marked `XFAIL`
   back to the original Fusion 360 user parameter) and a `build()` function
   returning replicad shapes.
 - `src/worker.ts` — web worker that loads the OCCT WASM kernel once, builds
-  models, meshes them for display, and exports STL/STEP blobs.
+  models, meshes them for display, and exports STL/STEP/3MF blobs.
+- `src/three-mf.ts` — dependency-light 3MF writer (meshes → OPC ZIP via
+  `fflate`); one `<object>` per shape so multi-part models split into parts.
 - `src/viewer.ts` — three.js viewport (Z-up, orbit controls).
 - `src/main.ts` — UI wiring: model selector, debounced parameter form,
   export buttons.
@@ -46,13 +61,27 @@ invariant breaks; a couple of pre-existing fragilities are marked `XFAIL`
 
 | Model | Status | Fidelity vs ground truth |
 |---|---|---|
-| Perimeter | U-channel border + grid bumps + dovetail 4-piece split + configurable dividers + case bottom-radius + print clearances (Stages 1-5) | bbox exact at nominal; fused volume 306k vs 405k (gap = flat-floor foot vs gusset ramp + design-specific divider layout); prints as 4 dovetailed pieces that seat in the case |
+| Perimeter | U-channel border + grid bumps + dovetail split (4 pieces, or auto-subdivided to fit a printer bed) + configurable dividers + case bottom-radius + print clearances (Stages 1-5) | bbox exact at nominal; fused volume 306k vs 405k (gap = flat-floor foot vs gusset ramp + design-specific divider layout); prints as dovetailed pieces that seat in the case |
 | Bin, no lid | complete | volume within 0.02% |
 | Bin with lid | bin complete; lid (plate + ramp + seat cut + configurable engraving + +X rail + rounded top edge/corners) | total volume within 0.4% of GT; GT has no lock notches (see below); an edge lip+groove is not yet ported |
 | Bin, double sided | complete — open tube + central floor with concave hopper fillet + interlock ribs + pull tab + 2 chamfered lids | bbox exact; body 68.3k vs 68.2k, total (body+2 lids) 87.3k vs 87.4k (0.03%) |
 | Perimeter template | complete — two 1mm test slices of the case wall, each a closed frame (rounded floor + tapered walls + top cap), across the width and the length | bbox exact; per-slice volume within ~1% |
 | Smooth perimeter (42 grid) | complete — reuses perimeter build (42mm grid, smooth/no bumps) | bbox exact; same foot/divider simplifications as perimeter |
 | Solid block | complete — the Bin (no lid) body with the interior cavity left uncut (`buildBinBody(p, true)`); keeps footprint, interlock ribs/sockets and pull tab. Stock for subtracting custom tool-holder pockets in CAD | no ground truth (not an original `.f3d`); smoke locks self-derived bbox 46.3×46.3×115 and volume 220848 |
+
+## Fitting the perimeter to your printer
+
+A full-size case frame (350 × 250 mm default) is larger than most print beds
+even after the standard 4-way dovetail split. The perimeter takes three optional
+parameters — **Printer bed width**, **Printer bed depth**, and **Bed margin**
+(per side, for brim/adhesion) — that auto-subdivide the frame so no piece
+exceeds the usable area (`bed − 2·margin`). Each long rail is cut into in-line
+segments and each end cap into stacked segments, with an extra dovetail seam at
+every cut; the pieces still assemble into the same frame. The bed fields default
+to `0` (= no limit), which reproduces the original four pieces. Every export
+format works — 3MF names each piece separately. `splitPieces` in
+`src/models/perimeter.ts` is the single source; `npm run scaling` asserts that
+across bed sizes every piece is one clean solid and fits the bed.
 
 ## Known limitations
 
