@@ -5,8 +5,9 @@ import { binNoLid } from "./bin-no-lid.ts";
 import { binWithLid } from "./bin-with-lid.ts";
 import { binDoubleSided } from "./bin-double-sided.ts";
 import { perimeterTemplate } from "./perimeter-template.ts";
+import { solidBlock } from "./solid-block.ts";
 
-export const models: ModelDef[] = [perimeter, smoothPerimeter, binNoLid, binWithLid, binDoubleSided, perimeterTemplate];
+export const models: ModelDef[] = [perimeter, smoothPerimeter, binNoLid, binWithLid, binDoubleSided, perimeterTemplate, solidBlock];
 
 export function modelById(id: string): ModelDef {
   const model = models.find((m) => m.id === id);

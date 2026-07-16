@@ -41,6 +41,9 @@ const expected = {
   // volume = GT total (body 68178 + two lids 9596 + 9577); smoke sums all shapes.
   "bin-double-sided": { x: 61.3, y: 61.3, z: 115, volume: 87351 },
   "perimeter-template": { x: 350, y: 250, z: 110 },
+  // No STEP ground truth — a filled Bin (no lid). bbox matches the bin;
+  // volume is self-derived (bin footprint solid + ribs - sockets/pull slot).
+  "solid-block": { x: 46.3, y: 46.3, z: 115, volume: 220848 },
 };
 const VOLUME_TOLERANCE = 0.005; // 0.5%
 

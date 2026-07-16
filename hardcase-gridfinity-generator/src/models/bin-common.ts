@@ -134,14 +134,22 @@ export function addPullTab(bin: Shape3D, w: number, d: number, h: number, p: Par
   );
 }
 
-export function buildBinBody(p: ParamValues): Shape3D {
+/**
+ * Build the shared bin body. When `solid` is true the interior cavity is not
+ * cut, yielding a completely filled block (same footprint, interlock ribs and
+ * pull tab) — the basis of the Solid Block model, meant for subtracting custom
+ * pockets in CAD. The interior bosses that back the sockets are redundant on a
+ * solid block but harmless, so the same `addInterlockRibs` path is reused.
+ */
+export function buildBinBody(p: ParamValues, solid = false): Shape3D {
   const w = p.widthModules * p.gridSpacing - 2 * p.clear;
   const d = p.lengthModules * p.gridSpacing - 2 * p.clear;
   const h = p.overallHeight;
   const t = p.wallThick;
 
-  let bin = box(w, d, 0, h).cut(box(w - 2 * t, d - 2 * t, p.floorThick, h + 1));
-  bin = addInterlockRibs(bin, w, d, h, p, p.floorThick);
+  let bin = box(w, d, 0, h);
+  if (!solid) bin = bin.cut(box(w - 2 * t, d - 2 * t, p.floorThick, h + 1));
+  bin = addInterlockRibs(bin, w, d, h, p, solid ? 0 : p.floorThick);
   if (p.pullTabHeight > 0) bin = addPullTab(bin, w, d, h, p);
   return bin;
 }
