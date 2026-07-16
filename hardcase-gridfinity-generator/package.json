@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "smoke": "node scripts/smoke.mjs",
     "check-3mf": "node scripts/check-3mf.mjs",
+    "build-spec": "node scripts/build-spec.mjs",
     "scaling": "node --expose-gc scripts/scaling-test.mjs"
   },
   "dependencies": {
@@ -21,6 +22,7 @@
   },
   "devDependencies": {
     "@types/three": "^0.185.0",
+    "marked": "^18.0.6",
     "typescript": "^5.9.0",
     "vite": "^8.1.4"
   }

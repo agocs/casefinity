@@ -1,6 +1,6 @@
 # Casefinity Liner Interior & Accessory Specification
 
-**Status:** Draft 1 · 2026-07-16
+**Status:** Proposed specification v0.1 · 2026-07-16
 **Scope:** The geometric interface between Casefinity hard-case *liners* (perimeter
 frames), *bins*, and *accessories* (lids, dividers, solid stock). This document
 specifies the module grid, the interlock/registration features, the fit and
@@ -278,7 +278,7 @@ Let bins print at scale `1 + ε_bin` and the liner at `1 + ε_liner`. The pack f
   on different printers/materials, or anisotropic X-vs-Y error. The tolerable
   differential is `0.0133·(K/N)`:
 
-  | Pack composition | `K/N` | Max differential scale `|ε_bin−ε_liner|` |
+  | Pack composition | `K/N` | Max differential scale `\|ε_bin−ε_liner\|` |
   |---|---:|---:|
   | All 1-module bins | 1 | **1.33 %** (very forgiving) |
   | Mixed, ~2 modules/bin | 0.5 | 0.67 % |

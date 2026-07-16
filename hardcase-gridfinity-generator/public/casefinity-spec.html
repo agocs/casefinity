@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Proposed Specification v0.1 — Casefinity</title>
+<style>
+  :root { color-scheme: light dark; --fg:#1a1a1a; --muted:#606770; --bg:#ffffff; --panel:#f6f7f9; --border:#e2e5ea; --accent:#2d6cdf; --code:#f0f2f5; }
+  @media (prefers-color-scheme: dark) { :root { --fg:#e6e6e6; --muted:#9aa0a6; --bg:#16171a; --panel:#1e2024; --border:#2c2f36; --accent:#6ea8fe; --code:#22252b; } }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  .bar { position:sticky; top:0; z-index:10; display:flex; align-items:center; justify-content:space-between; gap:1rem;
+         padding:.65rem 1.1rem; background:var(--panel); border-bottom:1px solid var(--border); backdrop-filter:saturate(1.2) blur(4px); }
+  .bar .name { font-weight:600; letter-spacing:.01em; }
+  .bar .tag { color:var(--muted); font-size:.82rem; margin-left:.5rem; }
+  .bar a { color:var(--accent); text-decoration:none; font-size:.9rem; }
+  .bar a:hover { text-decoration:underline; }
+  main { max-width:860px; margin:0 auto; padding:1.5rem 1.25rem 5rem; }
+  h1,h2,h3,h4 { line-height:1.25; font-weight:650; }
+  h1 { font-size:1.9rem; margin:.2em 0 .6em; }
+  h2 { font-size:1.35rem; margin:2.2em 0 .5em; padding-bottom:.3em; border-bottom:1px solid var(--border); }
+  h3 { font-size:1.1rem; margin:1.6em 0 .4em; }
+  h4 { font-size:1rem; margin:1.3em 0 .3em; color:var(--muted); }
+  p, li { margin:.5em 0; }
+  a { color:var(--accent); }
+  strong { font-weight:650; }
+  hr { border:0; border-top:1px solid var(--border); margin:2.2em 0; }
+  code { font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace; font-size:.88em; background:var(--code); padding:.12em .38em; border-radius:4px; }
+  pre { background:var(--code); border:1px solid var(--border); border-radius:8px; padding:.85em 1em; overflow-x:auto; }
+  pre code { background:none; padding:0; font-size:.86em; line-height:1.5; }
+  .table-wrap { overflow-x:auto; margin:1em 0; border:1px solid var(--border); border-radius:8px; }
+  table { border-collapse:collapse; width:100%; font-size:.92rem; }
+  th, td { text-align:left; padding:.5em .7em; border-bottom:1px solid var(--border); vertical-align:top; }
+  th { background:var(--panel); font-weight:600; white-space:nowrap; }
+  tbody tr:last-child td { border-bottom:0; }
+  td code, th code { white-space:nowrap; }
+  blockquote { margin:1em 0; padding:.2em 1em; border-left:3px solid var(--border); color:var(--muted); }
+</style>
+</head>
+<body>
+<div class="bar">
+  <span><span class="name">Casefinity</span><span class="tag">proposed specification v0.1</span></span>
+  <a href="/">← Back to generator</a>
+</div>
+<main>
+<h1>Casefinity Liner Interior &amp; Accessory Specification</h1>
+<p><strong>Status:</strong> Proposed specification v0.1 · 2026-07-16
+<strong>Scope:</strong> The geometric interface between Casefinity hard-case <em>liners</em> (perimeter
+frames), <em>bins</em>, and <em>accessories</em> (lids, dividers, solid stock). This document
+specifies the module grid, the interlock/registration features, the fit and
+clearance scheme, and the tolerance stack-up behaviour so that independently
+designed parts interoperate.</p>
+<p>This is a <em>reference</em> specification: every dimension traces to a named Fusion 360
+user parameter (see <code>f3d-extracted-parameters.md</code>) as realized in the generator
+(<code>hardcase-gridfinity-generator/src/models/</code>). Where the spec and the code
+disagree, the code is authoritative and this document is a bug.</p>
+<p>Requirement language: <strong>MUST / SHOULD / MAY</strong> per RFC 2119.</p>
+<hr>
+<h2>1. Terms and coordinate system</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Module</strong></td>
+<td>The unit cell of the grid. Pitch <code>P</code>. Standard grid <code>P = 15 mm</code>; Gridfinity liner <code>P = 42 mm</code>.</td>
+</tr>
+<tr>
+<td><strong>Liner</strong></td>
+<td>The perimeter frame that drops into the hard case and presents a gridded cavity.</td>
+</tr>
+<tr>
+<td><strong>Bin</strong></td>
+<td>An open or lidded container occupying <code>n × m</code> whole modules.</td>
+</tr>
+<tr>
+<td><strong>Rib</strong></td>
+<td>A feature standing <strong>proud</strong> of a wall (male).</td>
+</tr>
+<tr>
+<td><strong>Groove / socket</strong></td>
+<td>A feature <strong>recessed</strong> into a wall (female) that receives a rib.</td>
+</tr>
+<tr>
+<td><strong>Registration</strong></td>
+<td>Passive location of one part by another via rib↔groove engagement.</td>
+</tr>
+</tbody></table></div>
+<p>Parts are modelled <strong>Z-up</strong>, centred on XY, with <code>z = 0</code> at the part&#39;s bottom
+(print-bed) plane. <code>+X</code> = length, <code>+Y</code> = width, <code>+Z</code> = up (case mouth).</p>
+<hr>
+<h2>2. Nominal datum values</h2>
+<p>These are the interface constants. All parts claiming Casefinity conformance MUST
+use these values (or a documented superset).</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th align="right">Name</th>
+<th align="right">Standard</th>
+<th align="right">Gridfinity liner</th>
+<th>Source param</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>P</code></td>
+<td align="right">Module pitch</td>
+<td align="right"><strong>15.00 mm</strong></td>
+<td align="right"><strong>42.00 mm</strong></td>
+<td><code>GRID_SPACING</code></td>
+</tr>
+<tr>
+<td><code>t</code></td>
+<td align="right">Wall thickness</td>
+<td align="right"><strong>1.20 mm</strong></td>
+<td align="right">1.20 mm</td>
+<td><code>WALL_THICK</code></td>
+</tr>
+<tr>
+<td><code>b</code></td>
+<td align="right">Bump height (proud/deep)</td>
+<td align="right"><strong>1.50 mm</strong></td>
+<td align="right">1.50 mm</td>
+<td><code>WALL_BUMP</code> = <code>GRID_BUMP</code></td>
+</tr>
+<tr>
+<td><code>c</code></td>
+<td align="right">Registration clearance</td>
+<td align="right"><strong>0.10 mm</strong></td>
+<td align="right">0.10 mm</td>
+<td><code>CLEAR</code> = <code>LID_CLEAR</code></td>
+</tr>
+<tr>
+<td><code>f</code></td>
+<td align="right">Floor / foot thickness</td>
+<td align="right"><strong>1.00 mm</strong></td>
+<td align="right">1.00 mm</td>
+<td><code>FLOOR_THICK</code></td>
+</tr>
+<tr>
+<td><code>H</code></td>
+<td align="right">Nominal cavity/bin height</td>
+<td align="right">110 mm</td>
+<td align="right">110 mm</td>
+<td><code>OVERALL_HT</code> / <code>OVERALL_HEIGHT</code></td>
+</tr>
+</tbody></table></div>
+<p><strong>INV-1 (unified bump).</strong> <code>WALL_BUMP</code> (bins) and <code>GRID_BUMP</code> (liner) are the same
+value <code>b = 1.50 mm</code>, and every <strong>rib</strong> (male feature), on a bin or on a liner, is
+<code>t = 1.20 mm</code> wide and stands <code>b</code> proud. The female features differ in detail (a
+bin <em>socket</em> is a clearanced through-slot with a backing boss; a liner <em>groove</em> is
+a blind relief — see §4), but they share <code>b</code> and <code>t</code>. A bin therefore registers
+against a neighbouring bin and against the liner with compatible geometry. Any
+change to <code>b</code> or <code>t</code> MUST be applied to both families together.</p>
+<hr>
+<h2>3. The module grid</h2>
+<p><strong>REQ-3.1.</strong> The grid is a square lattice of pitch <code>P</code>. Feature and cavity
+positions are expressed in module coordinates and converted with <code>P</code>.</p>
+<p><strong>REQ-3.2 (bin footprint).</strong> A bin spanning <code>n</code> modules in an axis has outer wall
+faces at</p>
+<pre><code>F(n) = n·P − 2c        (footprint, wall-face to wall-face)
+</code></pre>
+<p>i.e. the bin is shrunk by <code>c = 0.10 mm</code> on <strong>each</strong> face inside its nominal
+<code>n·P</code> envelope. For <code>P = 15</code>: <code>F(1)=14.80</code>, <code>F(3)=44.80</code>, <code>F(n)=15n−0.20</code>.
+The <code>−2c</code> is per-bin and <strong>independent of <code>n</code></strong> (a 5-module bin is <code>74.80</code>, not
+<code>74.60</code>). This is the single most important fact for the stack-up analysis (§8).</p>
+<p><strong>REQ-3.3 (bounding envelope).</strong> The male ribs on the <code>−X</code> and <code>+Y</code> faces stand
+<code>b</code> proud, so a bin&#39;s true bounding box on those axes is</p>
+<pre><code>E(n) = F(n) + b = n·P − 2c + b = 15n + 1.30 mm     (standard grid)
+</code></pre>
+<p>e.g. a 3×3 bin measures <code>46.30 × 46.30 mm</code>. Slicers and nesting logic MUST use
+<code>E(n)</code>, not <code>F(n)</code>.</p>
+<p><strong>REQ-3.4 (feature centring).</strong> Bump centres along an edge are the module centres
+<code>(i − (k−1)/2)·P</code>, <code>i = 0…k−1</code>, for a <code>k</code>-module edge — i.e. one bump per module,
+symmetric about the part centre. The liner uses the same centring over its cavity
+span (<code>gridCenters</code>), so bin module centres and liner grid centres <strong>coincide</strong>
+when a bin sits on-grid.</p>
+<hr>
+<h2>4. Interlock / registration features</h2>
+<h3>4.1 Bin exterior (the socketed interlock)</h3>
+<p>A bin carries a <strong>complementary</strong> feature set so it registers &quot;either way round&quot;:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Face</th>
+<th>Feature</th>
+<th>Geometry</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>−X</code>, <code>+Y</code></td>
+<td><strong>Rib (male)</strong></td>
+<td><code>t = 1.20</code> wide, stands <code>b = 1.50</code> proud of the wall face, full height. One per module centre.</td>
+</tr>
+<tr>
+<td><code>+X</code>, <code>−Y</code></td>
+<td><strong>Socket (female)</strong></td>
+<td>Slot cut through the wall, <code>s = t + 2c = 1.40</code> wide, <code>b = 1.50</code> deep, backed by an interior <strong>boss</strong> <code>s + 2t = 3.80</code> wide, <code>b</code> thick, so the cavity is not opened. One per module centre.</td>
+</tr>
+</tbody></table></div>
+<p><strong>REQ-4.1.</strong> Socket slot width MUST equal <code>t + 2c</code> so a mating <code>t</code>-wide rib enters
+with exactly <code>c = 0.10 mm</code> clearance <strong>per flank</strong>.</p>
+<h3>4.2 Liner interior wall (the grid bumps)</h3>
+<p>The liner presents the <em>same</em> bump geometry on its cavity walls, split so it mates
+with a bin&#39;s exterior in any of the two registrations:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Liner wall</th>
+<th>Feature</th>
+<th>Geometry</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>−Y</code>, <code>+X</code></td>
+<td><strong>Rib</strong></td>
+<td><code>t = 1.20</code> wide, <code>b = 1.50</code> proud into the cavity (plus <code>t</code> embedded back into the wall). One per module.</td>
+</tr>
+<tr>
+<td><code>+Y</code>, <code>−X</code></td>
+<td><strong>Groove</strong></td>
+<td><code>t = 1.20</code> wide (line-to-line with a rib), <code>b = 1.50</code> deep into the wall, opening <code>0.30 mm</code> proud of the cavity face as a mouth relief (feature box <code>b + 0.30 = 1.80</code> deep). One per module.</td>
+</tr>
+</tbody></table></div>
+<p><strong>REQ-4.2.</strong> The liner groove is <code>t</code> wide — the <strong>same</strong> width as a rib, with <strong>no</strong>
+added tangential clearance. The <code>0.30 mm</code> relief opens the groove mouth <em>toward the
+cavity</em> (a first-layer / elephant-foot allowance at the wall face); it is not
+registration clearance. The groove is a <strong>flush relief</strong>, not a precision locator
+(see REQ-4.3).</p>
+<h3>4.3 Fit summary — two distinct interfaces</h3>
+<p>The joint is <strong>asymmetric</strong>: only the socket pairs are clearanced locators; the
+groove pairs are line-to-line reliefs.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Interface</th>
+<th>Male</th>
+<th>Female</th>
+<th>Tangential fit</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Locating</strong> — bin↔bin, and liner-rib↔bin-socket</td>
+<td>rib <code>t = 1.20</code></td>
+<td>socket <code>t + 2c = 1.40</code></td>
+<td><strong>0.10 mm / flank</strong> (0.20 across)</td>
+</tr>
+<tr>
+<td><strong>Relief</strong> — bin-rib↔liner-groove</td>
+<td>rib <code>t = 1.20</code></td>
+<td>groove <code>t = 1.20</code></td>
+<td><strong>line-to-line</strong> (0 nominal)</td>
+</tr>
+</tbody></table></div>
+<pre><code>   LOCATING:  rib t=1.20 ─►│ │◄─ socket s=1.40   →  0.10 mm/flank  (the clean hand-fit)
+                           └─┘
+   RELIEF:    rib t=1.20 ─►│ │◄─ groove t=1.20    →  0 nominal; seats on process tolerance
+                           └─┘   (groove clears the rib&#39;s DEPTH so the part sits flat)
+</code></pre>
+<p><strong>REQ-4.3.</strong> A part locates on its <strong>socket</strong> interfaces (the clearanced 0.10 mm/flank
+fit — this is what assembles cleanly by hand). The opposing <strong>rib-in-groove</strong> pair is
+a <em>relief</em> whose job is to clear the rib&#39;s <code>b</code> protrusion so the part seats flat
+against the wall; it is line-to-line in width and its practical fit is set by process
+tolerance and the <code>CLEAR</code> knob (§8.4). Designers MUST NOT treat the groove as a
+tight datum, and MUST NOT over-constrain a part by relying on both interfaces for
+precision simultaneously.</p>
+<hr>
+<h2>5. Bin ↔ bin engagement</h2>
+<p><strong>REQ-5.1.</strong> Adjacent bins meet wall-face-to-wall-face: one bin&#39;s <code>−X</code>/<code>−Y</code> rib
+seats fully into the neighbour&#39;s <code>+X</code>/<code>+Y</code> socket (<code>b</code> proud into <code>b</code> deep, with the
+§4.3 locating clearance), so the wall faces become nominally coincident and the rib
+occupies the socket volume — the joint adds <strong>no length</strong> to the pack. Each bin
+therefore contributes exactly <code>F(nᵢ)</code> to a row, and the centre-to-centre pitch of
+two bins of <code>n_A</code>, <code>n_B</code> modules is</p>
+<pre><code>pitch = F(n_A)/2 + F(n_B)/2 = (n_A + n_B)·P/2 − 2c.
+</code></pre>
+<p><strong>REQ-5.2.</strong> Because the ribs are handed (<code>−X/+Y</code> male, <code>+X/−Y</code> female), a full
+tiling has consistent polarity: every interior seam is one rib into one socket.
+Rotating a bin 180° about Z swaps which faces are male, and it still registers
+(INV-1) — but its pull tab and any lid features rotate with it.</p>
+<hr>
+<h2>6. Bin ↔ liner engagement</h2>
+<p><strong>REQ-6.1.</strong> A bin on the cavity perimeter registers to the liner grid bumps with
+the §4.3 fit. A bin in the interior registers to its neighbours (§5). The liner
+grid and bin modules share pitch and centring (REQ-3.4), so both hold simultaneously.</p>
+<p><strong>REQ-6.2.</strong> Perimeter bins are located by the liner at the case datum; interior
+bins are chained off them. See §8 for how error propagates through the chain.</p>
+<p><strong>REQ-6.3 (Z).</strong> A bin&#39;s floor rests on the liner foot; its rim sits at/near the
+cavity mouth (<code>H</code> nominal). The pull tab (<code>PULL_TAB_HT = 5 mm</code>) and any lid stand
+<strong>above</strong> the rim and MUST NOT be assumed to fit under a closed case lid without
+checking <code>case_internal_height ≥ H + PULL_TAB_HT</code>.</p>
+<hr>
+<h2>7. Liner interior sizing — the integer-module invariant</h2>
+<p><strong>INV-7 (interiors snap to whole modules).</strong> A liner&#39;s cavity MUST be an integer
+number of modules on each axis. This is <em>guaranteed by construction</em> by the border
+formula, not left to the user:</p>
+<pre><code>N_L = floor(OVERALL_LENGTH / P) − SIDE_BOARDER_BIN_ADD      (cavity length, modules)
+N_W = floor(OVERALL_WIDTH  / P) − FRONT_BOARDER_BIN_ADD     (cavity width,  modules)
+
+cavity_length = N_L · P          cavity_width = N_W · P      (always exact multiples)
+</code></pre>
+<p>The free outer dimension is absorbed entirely by the <strong>border</strong>, which is never
+smaller than the whole modules reserved plus the sub-module remainder:</p>
+<pre><code>border_total(axis) = OVERALL − N·P = P·BIN_ADD + (OVERALL mod P)
+border_per_side    = border_total / 2
+</code></pre>
+<p>Worked defaults (standard grid, <code>OVERALL = 350 × 250</code>, <code>SIDE_ADD = 4</code>, <code>FRONT_ADD = 3</code>):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Axis</th>
+<th align="right"><code>floor(OVERALL/P)</code></th>
+<th align="right"><code>BIN_ADD</code></th>
+<th align="right">Cavity (modules → mm)</th>
+<th align="right">Border/side</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Length</td>
+<td align="right">23</td>
+<td align="right">4</td>
+<td align="right">19 → <strong>285.0</strong></td>
+<td align="right">32.5 mm</td>
+</tr>
+<tr>
+<td>Width</td>
+<td align="right">16</td>
+<td align="right">3</td>
+<td align="right">13 → <strong>195.0</strong></td>
+<td align="right">27.5 mm</td>
+</tr>
+</tbody></table></div>
+<p>Gridfinity liner (<code>P = 42</code>, <code>OVERALL = 350 × 250</code>, <code>SIDE_ADD = FRONT_ADD = 1</code>):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Axis</th>
+<th align="right"><code>floor(OVERALL/P)</code></th>
+<th align="right"><code>BIN_ADD</code></th>
+<th align="right">Cavity (modules → mm)</th>
+<th align="right">Border/side</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Length</td>
+<td align="right">8</td>
+<td align="right">1</td>
+<td align="right">7 → <strong>294.0</strong></td>
+<td align="right">28.0 mm</td>
+</tr>
+<tr>
+<td>Width</td>
+<td align="right">5</td>
+<td align="right">1</td>
+<td align="right">4 → <strong>168.0</strong></td>
+<td align="right">41.0 mm</td>
+</tr>
+</tbody></table></div>
+<p><strong>REQ-7.1.</strong> The <code>42 mm</code> liner cavity being a whole multiple of <code>42</code> means a
+standard Gridfinity baseplate/bin set (<code>42 mm</code> module) drops into the pocket; the
+standard Gridfinity <code>~0.5 mm/module</code> baseplate clearance lives <em>inside</em> that
+pocket and is not part of this spec.</p>
+<p><strong>REQ-7.2 (minimum border).</strong> <code>border_per_side</code> MUST remain <code>≥ t + b + m_struct</code>
+(wall + bump + a structural margin <code>m_struct ≈ 3 mm</code>), i.e. <code>≳ 6 mm</code>, or the
+border cannot carry the U-channel wall and grid bump. Increasing <code>BIN_ADD</code> trades
+cavity modules for border; it MUST NOT drive the border below this floor.</p>
+<p><strong>SHOULD-7.3 (UX).</strong> Because the cavity is always <code>N_L × N_W</code> whole modules, the
+generator SHOULD display the resulting module count (e.g. &quot;19 × 13 modules&quot;) and
+MAY offer an inverse mode where the user enters <code>N_L, N_W</code> and the outer size is
+computed as <code>N·P + 2·border</code>.</p>
+<hr>
+<h2>8. Tolerance and stack-up</h2>
+<p>This section addresses the practical question: <em>single bins fit beautifully — what
+happens with many bins side by side across a full liner?</em></p>
+<h3>8.1 Two independent error sources</h3>
+<ol>
+<li><p><strong>Designed clearance</strong> <code>2c = 0.20 mm</code> per bin (0.10 per face), realized as the
+rib/socket flank gap. It is <strong>absolute and per-bin</strong>, independent of <code>n</code>
+(REQ-3.2). A row of <code>K</code> bins summing to <code>N</code> modules leaves total assembly slack</p>
+<pre><code>S = C − Σ F(nᵢ) = N·P − (N·P − 2c·K) = 2c·K = 0.20·K mm.
+</code></pre>
+<p><strong>Slack scales with the number of bins <code>K</code>, not the number of modules <code>N</code>.</strong>
+Many narrow bins → lots of slack (forgiving, but more rattle). One wide bin or
+pack → little slack (crisp, but unforgiving).</p>
+</li>
+<li><p><strong>Printer dimensional error</strong>, which scales with <em>absolute distance</em>: a fractional
+scale error <code>ε</code> (steps/mm, flow, thermal shrink) displaces a feature at distance
+<code>d</code> from the part datum by <code>ε·d</code>. Over a full liner span this dominates.</p>
+</li>
+</ol>
+<h3>8.2 The stack-up result</h3>
+<p>Let bins print at scale <code>1 + ε_bin</code> and the liner at <code>1 + ε_liner</code>. The pack fits iff</p>
+<pre><code>(N·P − 2c·K)(1 + ε_bin) ≤ N·P·(1 + ε_liner)
+  ⟹   ε_bin − ε_liner  ≤  2c·K / (N·P)  =  0.0133 · (K/N)      (standard grid)
+</code></pre>
+<p><strong>Key consequences</strong></p>
+<ul>
+<li><p><strong>Ratiometric cancellation.</strong> If bins and the liner are printed on the <em>same
+machine, material, and profile</em>, <code>ε_bin ≈ ε_liner</code>, the left side is ~0, and the
+pack <strong>always</strong> fits — the <code>0.20·K</code> slack scales along with everything else. This
+is why your hand-fit today is excellent, and it is the primary recommendation.</p>
+</li>
+<li><p><strong>The enemy is <em>differential</em> scale</strong>, not absolute size: bins and liner printed
+on different printers/materials, or anisotropic X-vs-Y error. The tolerable
+differential is <code>0.0133·(K/N)</code>:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Pack composition</th>
+<th align="right"><code>K/N</code></th>
+<th align="right">Max differential scale <code>|ε_bin−ε_liner|</code></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>All 1-module bins</td>
+<td align="right">1</td>
+<td align="right"><strong>1.33 %</strong> (very forgiving)</td>
+</tr>
+<tr>
+<td>Mixed, ~2 modules/bin</td>
+<td align="right">0.5</td>
+<td align="right">0.67 %</td>
+</tr>
+<tr>
+<td>A few wide bins, ~5 modules/bin</td>
+<td align="right">0.2</td>
+<td align="right">0.27 %</td>
+</tr>
+<tr>
+<td>One bin fills the row (<code>K=1</code>, <code>N=19</code>)</td>
+<td align="right">0.053</td>
+<td align="right"><strong>0.070 %</strong> (tight)</td>
+</tr>
+</tbody></table></div>
+</li>
+<li><p><strong>Per-joint alignment (a second, tighter check).</strong> Total fit is necessary but not
+sufficient: each rib must still land in its socket/groove within the <code>c = 0.10 mm</code>
+flank gap. A bin&#39;s far rib is <code>≤ n·P/2</code> from its registration datum, so its
+misalignment is <code>≈ |ε_bin − ε_datum|·(n·P/2)</code>. Requiring <code>&lt; c</code>:</p>
+<pre><code>wide bins amplify drift:  a 10-module bin (150 mm) at 0.1 % differential
+drifts its end rib by 0.075 mm — inside the 0.10 mm gap, but only just.
+</code></pre>
+</li>
+</ul>
+<h3>8.3 Absolute-accuracy budget (single element, worst case <code>K=1</code>)</h3>
+<p>For a single bin/pack of <code>n</code> modules that must drop into an <code>n</code>-module pocket with
+only its own <code>2c = 0.20 mm</code>:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="right">Span <code>n·P</code></th>
+<th align="right">Allowed absolute error</th>
+<th align="right">= fractional <code>ε</code></th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="right">45 mm (3 mod)</td>
+<td align="right">0.20 mm</td>
+<td align="right">0.44 %</td>
+</tr>
+<tr>
+<td align="right">150 mm (10 mod)</td>
+<td align="right">0.20 mm</td>
+<td align="right">0.13 %</td>
+</tr>
+<tr>
+<td align="right">285 mm (19 mod, full default cavity)</td>
+<td align="right">0.20 mm</td>
+<td align="right"><strong>0.070 %</strong></td>
+</tr>
+</tbody></table></div>
+<h3>8.4 Requirements &amp; guidance</h3>
+<ul>
+<li><strong>SHOULD-8.1.</strong> Print a liner and the bins that fill it on the <strong>same printer,
+material, and profile.</strong> This makes error ratiometric and removes stack-up as a
+concern for any realistic <code>ε</code>.</li>
+<li><strong>SHOULD-8.2.</strong> For large single elements (a bin or lid spanning ≳ 8 modules),
+calibrate XY scale (flow / steps-per-mm / measured calibration cube) to keep
+absolute error <code>&lt; 2c = 0.20 mm</code> over the span (≈ 0.07 % at the full default cavity).</li>
+<li><strong>MAY-8.3.</strong> On an uncalibrated or high-shrink process, raise <code>CLEAR</code> (bins) from
+<code>0.10</code> toward <code>0.15–0.20 mm</code> to widen every flank gap, accepting more play. This
+is the intended tuning knob; <code>WALL_THICK</code>, <code>WALL_BUMP</code>, and <code>P</code> MUST stay fixed
+(they are interface constants — INV-1).</li>
+<li><strong>MAY-8.4.</strong> Prefer <strong>more, narrower bins</strong> over one wide bin when print accuracy
+is marginal: each extra bin adds <code>2c = 0.20 mm</code> of total slack and shortens the
+drift lever <code>n·P/2</code>.</li>
+<li><strong>NOTE-8.5.</strong> The liner&#39;s own perimeter is split into bed-fitting dovetail pieces
+(<code>splitPieces</code>); those seams are a separate, generously-cleared joint
+(<code>BOARDER_DOVETAIL_CLEAR = 0.20 mm</code>) and do not interact with the module grid
+clearance analysed here.</li>
+<li><strong>NOTE-8.6.</strong> The single tightest interface is the perimeter <strong>bin-rib↔liner-groove</strong>
+relief (§4.3, line-to-line width). It is the first place an over-extruded /
+oversized print binds. If perimeter bins feel tight while interior (bin↔bin) joints
+are fine, tune extrusion width / flow, or raise <code>CLEAR</code>, before touching any
+interface constant.</li>
+</ul>
+<hr>
+<h2>9. Accessories</h2>
+<h3>9.1 Lids</h3>
+<p>Lids seat on a bin&#39;s rim with their own clearance <code>LID_CLEAR = 0.10 mm</code> and a
+sliding-lock scheme (<code>LID_LOCK_*</code>, <code>LID_PULL_*</code>). A lid&#39;s footprint tracks the bin
+footprint <code>F(n)</code>; a lid MUST use the same <code>P</code>, <code>t</code>, <code>c</code> so it shares the bin&#39;s
+tolerance behaviour (§8). Lids stand above the rim (REQ-6.3).</p>
+<h3>9.2 Dividers</h3>
+<p>Liner dividers are full-height cross-ribs on the long walls at evenly spaced grid
+centres (<code>BOARDER_DIVIDERS</code>). They subdivide the cavity <strong>on module boundaries</strong>;
+a divider MUST fall on a grid line so it does not steal a bin&#39;s module.</p>
+<h3>9.3 Solid Block (module stock)</h3>
+<p>The Solid Block is a bin footprint with no cavity (keeps <code>F(n)</code>, ribs, sockets,
+pull tab). It is module-conforming stock: it registers exactly like a bin, so a
+tool holder machined out of it drops into the grid with the §4.3 fit. Custom
+accessories SHOULD start from <code>F(n)</code> + the §4.1 feature set to inherit conformance.</p>
+<h3>9.4 Conformance checklist (new part)</h3>
+<p>A part is <em>Casefinity-conformant</em> iff:</p>
+<ol>
+<li>Its module envelope is <code>n·P</code> with footprint <code>F(n) = n·P − 2c</code> (REQ-3.2).</li>
+<li>It carries the §4.1 handed rib/socket set at module centres, <code>t</code> wide, <code>b</code>
+proud/deep, sockets <code>t + 2c</code> wide (REQ-4.1).</li>
+<li>It uses the datum constants of §2 unchanged except <code>CLEAR</code> (the only tuning knob).</li>
+<li>If it defines an interior pocket, that pocket snaps to whole modules (INV-7).</li>
+</ol>
+<hr>
+<h2>Appendix A — Symbol → parameter → source map</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Generator param (<code>bin-common.ts</code> / <code>perimeter.ts</code>)</th>
+<th>Fusion name</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>P</code></td>
+<td><code>gridSpacing</code></td>
+<td><code>GRID_SPACING</code></td>
+</tr>
+<tr>
+<td><code>t</code></td>
+<td><code>wallThick</code></td>
+<td><code>WALL_THICK</code></td>
+</tr>
+<tr>
+<td><code>b</code></td>
+<td><code>wallBump</code> / <code>gridBump</code></td>
+<td><code>WALL_BUMP</code> / <code>GRID_BUMP</code></td>
+</tr>
+<tr>
+<td><code>c</code></td>
+<td><code>clear</code></td>
+<td><code>CLEAR</code> / <code>LID_CLEAR</code></td>
+</tr>
+<tr>
+<td><code>f</code></td>
+<td><code>floorThick</code> / <code>footThick</code></td>
+<td><code>FLOOR_THICK</code></td>
+</tr>
+<tr>
+<td><code>F(n)</code></td>
+<td><code>widthModules*gridSpacing - 2*clear</code></td>
+<td><code>MODULE_NUMBER * GRID_SPACING</code> (− <code>CLEAR</code>)</td>
+</tr>
+<tr>
+<td>socket <code>s</code></td>
+<td><code>t + 2*clear</code> (<code>addInterlockRibs</code>)</td>
+<td>derived</td>
+</tr>
+<tr>
+<td><code>N_L,N_W</code></td>
+<td><code>cavityDims()</code></td>
+<td><code>SIDE/FRONT_BOARDER_FACTOR</code></td>
+</tr>
+</tbody></table></div>
+<p>Provenance of every default: <code>f3d-extracted-parameters.md</code>. Geometry realization:
+<code>hardcase-gridfinity-generator/src/models/bin-common.ts</code> (bins) and
+<code>.../perimeter.ts</code> (liner). Invariants INV-1, INV-7 and the fit REQ-4.1 are
+exercised by <code>npm run scaling</code>.</p>
+
+</main>
+</body>
+</html>
