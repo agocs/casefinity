@@ -21,7 +21,7 @@ export const smoothPerimeter: ModelDef = {
   name: "Smooth Perimeter (gridfinity interior)",
   description:
     "Liner frame with a smooth (bump-free) inner wall. Interior is designed to fit a 42mm Gridfinity baseplate. Split " +
-    "into four dovetailed pieces. Shares the perimeter frame code.",
+    "into dovetailed pieces (enter a printer bed size to auto-subdivide to fit). Shares the perimeter frame code.",
   params: withDefaults(perimeterParams, {
     gridSpacing: 42,
     gridBump: 0,

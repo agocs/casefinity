@@ -122,6 +122,39 @@ const eachIsOneSolid = () => (shapes) => {
   return { ok: bad === 0, msg: `solid counts [${counts.join(",")}] (each must be 1)` };
 };
 
+// Expected perimeter piece count — mirrors the bed-fit maths in perimeter.ts
+// splitPieces (2 long rails + 2 end caps, each subdivided to fit the bed).
+// Kept in sync with the model by hand, like binFootprintBBox.
+const perimeterPieceCount = (p) => {
+  const cavLen = p.gridSpacing * (Math.floor(p.overallLength / p.gridSpacing) - p.sideBoarderBinAdd);
+  const splitX = cavLen / 2;
+  const depth = p.dovetailDepth;
+  const active = p.bedWidth > 0 && p.bedDepth > 0;
+  const usable = Math.max(p.bedWidth - 2 * p.bedMargin, p.bedDepth - 2 * p.bedMargin);
+  const fit = (span, corner, interior) => {
+    if (!active) return 1;
+    for (let n = 1; n < 24; n++) if (span / n + (n === 1 ? corner : interior) <= usable) return n;
+    return 24;
+  };
+  return 2 * fit(2 * splitX, 2 * depth, 2 * depth) + 2 * fit(p.overallWidth, 0, depth);
+};
+const pieceCountMatches = () => (shapes, p) => {
+  const want = perimeterPieceCount(p);
+  return { ok: shapes.length === want, msg: `${shapes.length} pieces (want ${want})` };
+};
+// Every printed piece must fit the usable bed (bed − 2·margin) in its best
+// orientation. No-op when no bed is set. Uses each piece's own mesh footprint.
+const fitsBed = () => (shapes, p) => {
+  if (!(p.bedWidth > 0 && p.bedDepth > 0)) return { ok: true, msg: "no bed limit" };
+  const [s, l] = [p.bedWidth - 2 * p.bedMargin, p.bedDepth - 2 * p.bedMargin].sort((a, b) => a - b);
+  const bad = [];
+  shapes.forEach((sh, i) => {
+    const [a, b] = meshBBox([sh]).slice(0, 2).sort((x, y) => x - y); // footprint, sorted asc
+    if (a > s + 0.5 || b > l + 0.5) bad.push(`#${i + 1} ${a.toFixed(0)}×${b.toFixed(0)}`);
+  });
+  return { ok: bad.length === 0, msg: bad.length ? `exceed ${s}×${l}: ${bad.join(", ")}` : `all ≤ ${s}×${l} usable` };
+};
+
 // bin footprint: modules·grid − 2·clear, plus one WALL_BUMP rib on -X/+Y; tab on z.
 const binFootprintBBox = (p) => [
   p.widthModules * p.gridSpacing - 2 * p.clear + p.wallBump,
@@ -186,11 +219,22 @@ const SUITES = {
     // filleted base (outerInnerY < bump tip) and the fuse left a zero-volume
     // flake; addDividers now clamps the outer edge, so every piece stays one
     // clean solid. Kept as a variant to guard the fix.
-    variants: [{}, { overallLength: 250, overallWidth: 180 }, { overallHeight: 70 }],
+    // Bed variants exercise the auto-subdivision: a bed size adds dovetail seams
+    // so no piece exceeds the usable area; the base (no-bed) case stays 4 pieces.
+    variants: [
+      {},
+      { overallLength: 250, overallWidth: 180 },
+      { overallHeight: 70 },
+      { bedWidth: 256, bedDepth: 256 },
+      { bedWidth: 220, bedDepth: 220 },
+      { bedWidth: 180, bedDepth: 180 },
+      { bedWidth: 300, bedDepth: 150 }, // asymmetric: only the long rails split
+    ],
     checks: [
-      ["shape count (4 dovetail pieces)", shapeCount(4)],
+      ["piece count (bed-fit split)", pieceCountMatches()],
       ["each piece is a single clean solid (no debris)", eachIsOneSolid()],
-      ["assembled bbox = OVERALL_*", bboxMatches(overallBBox)],
+      ["assembled bbox = OVERALL_* (pieces stay in place)", bboxMatches(overallBBox)],
+      ["every piece fits the bed", fitsBed()],
       ["cavity is open (hollow frame)", (s, p) => {
         const v = centerColumnVolume(s, 10, 10, p.overallHeight - 10);
         return { ok: v < 5, msg: `centre-column volume ${v.toFixed(1)} mm³ (want ~0)` };
@@ -201,11 +245,12 @@ const SUITES = {
     // Regression: 300×300 used to leave the two long-side pieces empty (same
     // divider-profile inversion as the perimeter, here blowing the fuse up to
     // nothing rather than a flake). Guarded by the addDividers clamp.
-    variants: [{}, { overallLength: 300, overallWidth: 300 }],
+    variants: [{}, { overallLength: 300, overallWidth: 300 }, { bedWidth: 220, bedDepth: 220 }],
     checks: [
-      ["shape count (4 dovetail pieces)", shapeCount(4)],
+      ["piece count (bed-fit split)", pieceCountMatches()],
       ["each piece is a single clean solid", eachIsOneSolid()],
       ["assembled bbox = OVERALL_*", bboxMatches(overallBBox)],
+      ["every piece fits the bed", fitsBed()],
     ],
   },
   "perimeter-template": {

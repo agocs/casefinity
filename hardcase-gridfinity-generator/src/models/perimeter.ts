@@ -213,67 +213,139 @@ function addDividers(shape: Shape3D, p: ParamValues, signY: 1 | -1): Shape3D {
 }
 
 /**
- * Split the one-piece frame into four dovetailed border pieces (2 long sides +
- * 2 short ends) so it prints in case-sized parts. The split runs at the cavity-
- * length boundary (X = ±cavityHalfLength); each long-side piece carries a
- * dovetail tang at the border centre of its ends (BOARDER_DOVETAIL_WIDTH wide,
- * _DEPTH deep, flaring by _ANGLE so it locks) that plugs into a matching socket
- * in the end piece. The end pieces keep the rounded corners.
+ * Split the one-piece frame into dovetailed border pieces so it prints in
+ * bed-sized parts. The base split is 2 long side-rails + 2 short end caps, cut
+ * at the cavity-length boundary (X = ±cavityHalfLength); each long rail carries
+ * a dovetail tang at the border centre of its ends (BOARDER_DOVETAIL_WIDTH wide,
+ * _DEPTH deep, flaring by _ANGLE so it locks) that plugs into a socket in the
+ * end cap. The end caps keep the rounded corners. The socket cut is grown by
+ * BOARDER_DOVETAIL_CLEAR beyond the tang, leaving a print-clearance gap.
  *
- * The socket cut in the end pieces is grown by BOARDER_DOVETAIL_CLEAR beyond the
- * side pieces' tang, leaving a print-clearance gap so the joint slides together.
+ * When a printer bed is given (bedWidth/bedDepth > 0), each rail is further
+ * subdivided into in-line segments so no piece exceeds the usable bed area
+ * (bed minus 2*bedMargin), with an extra dovetail seam at every cut. Blank bed
+ * fields (0) mean "no limit" → the original four pieces (Nlong = Nend = 1), so
+ * this is a strict generalization of the 4-piece split. Pieces stay in their
+ * assembled positions; the viewer and 3MF export present them separately.
  */
 function splitPieces(frame: Shape3D, p: ParamValues): Shape3D[] {
   const { length, width } = cavityDims(p);
   const splitX = length / 2;
-  const yc = (width / 2 + p.overallWidth / 2) / 2; // long-side border centre
+  const yc = (width / 2 + p.overallWidth / 2) / 2; // long-rail border centre (Y)
+  const xcEnd = (length / 2 + p.overallLength / 2) / 2; // end-cap border centre (X)
   const w = p.dovetailWidth;
   const depth = p.dovetailDepth;
   const flare = depth * Math.tan((p.dovetailAngle * Math.PI) / 180);
-  const big = p.overallLength; // generous half-plane bound
+  const c = p.dovetailClear; // socket grown by this; tang stays nominal
+  const big = Math.max(p.overallLength, p.overallWidth); // generous half-plane bound
 
-  // Dovetail footprint at corner (sx, sy): base set 2 mm inside the split line
-  // X = sx*splitX (overlaps the side rectangle cleanly, no sliver seam), tip
-  // `depth` further out, flared (dovetail). `grow` enlarges the socket beyond the
-  // tang by the joint clearance on the tip and both flanks.
-  const tang = (sx: number, sy: number, grow = 0): Drawing => {
-    const x0 = sx * (splitX - 2);
-    const x1 = sx * (splitX + depth) + sx * grow;
-    const y = sy * yc;
+  // Dovetail trapezoid crossing a seam. `axis` is the direction the tang
+  // protrudes (and along which the joint locks): "X" for a seam cutting a long
+  // rail, "Y" for one cutting an end cap. `pos` is the seam coordinate on that
+  // axis, `band` the centre coordinate on the other axis, `dir` = ±1 the
+  // protrusion direction. The base sits 2 mm inside the owning segment so the
+  // fuse overlaps with no coincident-face sliver; the flared tip locks it.
+  // `grow` enlarges it into a socket (tip and both flanks) by the joint gap.
+  const seamTang = (axis: "X" | "Y", pos: number, band: number, dir: 1 | -1, grow = 0): Drawing => {
+    const a0 = pos - dir * 2;
+    const a1 = pos + dir * (depth + grow);
     const hw = w / 2 + grow;
     const hwTip = w / 2 + flare + grow;
-    return draw([x0, y - hw])
-      .lineTo([x0, y + hw])
-      .lineTo([x1, y + hwTip])
-      .lineTo([x1, y - hwTip])
+    const pt = (a: number, b: number): [number, number] => (axis === "X" ? [a, b] : [b, a]);
+    return draw(pt(a0, band - hw))
+      .lineTo(pt(a0, band + hw))
+      .lineTo(pt(a1, band + hwTip))
+      .lineTo(pt(a1, band - hwTip))
       .close();
   };
   const rect = (x0: number, x1: number, y0: number, y1: number): Drawing =>
     drawRectangle(x1 - x0, y1 - y0).translate((x0 + x1) / 2, (y0 + y1) / 2);
   const solid = (d: Drawing): Shape3D =>
     (d.sketchOnPlane("XY", 0) as Sketch).extrude(p.overallHeight) as Shape3D;
-  const piece = (region: Drawing): Shape3D => frame.clone().intersect(solid(region));
 
-  const c = p.dovetailClear; // socket grown by this; tang stays nominal
-  // Long sides: middle X-span plus tangs into both ends.
-  const sidePlus = rect(-splitX, splitX, 0, big).fuse(tang(1, 1)).fuse(tang(-1, 1));
-  const sideMinus = rect(-splitX, splitX, -big, 0).fuse(tang(1, -1)).fuse(tang(-1, -1));
-  // Ends: full-width beyond the split, minus the (grown) tang sockets; corners stay.
-  const endPlus = rect(splitX, big, -big, big).cut(tang(1, 1, c)).cut(tang(1, -1, c));
-  const endMinus = rect(-big, -splitX, -big, big).cut(tang(-1, 1, c)).cut(tang(-1, -1, c));
-
-  // Add each wall's grid features to the piece that owns that wall (avoids
-  // orphaning a rib into the neighbouring piece); dividers go on the long sides.
-  const wall = (axis: "X" | "Y", sign: 1 | -1, kind: "rib" | "groove"): WallSpec[] =>
+  // Grid features go on the piece that owns each wall (avoids orphaning a rib
+  // into a neighbour); dividers go on the long sides.
+  const wallSpec = (axis: "X" | "Y", sign: 1 | -1, kind: "rib" | "groove"): WallSpec[] =>
     p.gridBump > 0 ? [{ axis, sign, kind }] : [];
   const div = (piece: Shape3D, signY: 1 | -1): Shape3D =>
     p.dividers > 0 ? addDividers(piece, p, signY) : piece;
-  return [
-    div(applyGridFeatures(piece(sidePlus), p, wall("Y", 1, "groove")), 1),
-    div(applyGridFeatures(piece(sideMinus), p, wall("Y", -1, "rib")), -1),
-    applyGridFeatures(piece(endPlus), p, wall("X", 1, "rib")),
-    applyGridFeatures(piece(endMinus), p, wall("X", -1, "groove")),
-  ];
+
+  // Bed-fit segment counts. A thin rail lies along the bed's longer axis, so the
+  // length limit is the larger usable dimension. `cornerReserve`/`interiorReserve`
+  // hold back room for the tangs a segment protrudes: long rails keep their
+  // corner tangs at every N (2*depth), end caps gain one interior tang when N>1.
+  // 0 on either bed dimension = no limit → N=1 (the original 4-piece split).
+  const bedActive = p.bedWidth > 0 && p.bedDepth > 0;
+  const usable = Math.max(p.bedWidth - 2 * p.bedMargin, p.bedDepth - 2 * p.bedMargin);
+  const MAXSEG = 24;
+  const fitCount = (span: number, cornerReserve: number, interiorReserve: number): number => {
+    if (!bedActive) return 1;
+    for (let n = 1; n < MAXSEG; n++) {
+      if (span / n + (n === 1 ? cornerReserve : interiorReserve) <= usable) return n;
+    }
+    return MAXSEG;
+  };
+  const nLong = fitCount(2 * splitX, 2 * depth, 2 * depth);
+  const nEnd = fitCount(p.overallWidth, 0, depth);
+
+  // Slice a featured rail/cap `body` (already the U-channel wall profile) into N
+  // in-line segments along `axis`, joined by a wall-profile dovetail at each
+  // interior seam. The key follows the wall — like the corner joints — because
+  // it is built by adding/removing the tang FOOTPRINT to a segment's 2-D region
+  // and intersecting the body, NOT by fusing a solid prism (which would leave a
+  // solid block). `band` is the seam's centre on the off-axis; `y0/y1`|`x0/x1`
+  // bound the rail across its width. Each seam: left segment gets the tang
+  // (region ∪ footprint), right segment gets the grown socket (region − footprint).
+  const sliceSegments = (
+    body: Shape3D,
+    axis: "X" | "Y",
+    n: number,
+    cuts: number[],
+    band: number,
+    lo: number,
+    hi: number,
+  ): Shape3D[] => {
+    if (n === 1) return [body];
+    const bounds = [-big, ...cuts, big];
+    const seg = (a0: number, a1: number): Drawing =>
+      axis === "X" ? rect(a0, a1, lo, hi) : rect(lo, hi, a0, a1);
+    return Array.from({ length: n }, (_, i) => {
+      let region = seg(bounds[i], bounds[i + 1]);
+      if (i < n - 1) region = region.fuse(seamTang(axis, cuts[i], band, 1)); // male tang past the far seam
+      if (i > 0) region = region.cut(seamTang(axis, cuts[i - 1], band, 1, c)); // socket at the near seam
+      return body.clone().intersect(solid(region));
+    });
+  };
+
+  // One long side-rail (sy = +1 top / -1 bottom): the full featured rail, then
+  // sliced into nLong in-line segments. Features/dividers are applied to the
+  // whole rail first so slicing (intersect) clips them per segment.
+  const longSegments = (sy: 1 | -1): Shape3D[] => {
+    const y0 = sy > 0 ? 0 : -big;
+    const y1 = sy > 0 ? big : 0;
+    const region0 = rect(-splitX, splitX, y0, y1)
+      .fuse(seamTang("X", splitX, sy * yc, 1))
+      .fuse(seamTang("X", -splitX, sy * yc, -1));
+    const kind = sy > 0 ? "groove" : "rib";
+    const rail = div(applyGridFeatures(frame.clone().intersect(solid(region0)), p, wallSpec("Y", sy, kind)), sy);
+    const cuts = Array.from({ length: nLong - 1 }, (_, i) => -splitX + ((i + 1) * 2 * splitX) / nLong);
+    return sliceSegments(rail, "X", nLong, cuts, sy * yc, y0, y1);
+  };
+
+  // One end cap (ex = +1 right / -1 left): full-width beyond the split with the
+  // corners and their (grown) sockets, sliced into nEnd segments along Y.
+  const endSegments = (ex: 1 | -1): Shape3D[] => {
+    const x0 = ex > 0 ? splitX : -big;
+    const x1 = ex > 0 ? big : -splitX;
+    const kind = ex > 0 ? "rib" : "groove";
+    const cap = applyGridFeatures(frame.clone().intersect(solid(rect(x0, x1, -big, big))), p, wallSpec("X", ex, kind))
+      .cut(solid(seamTang("X", ex * splitX, yc, ex, c)))
+      .cut(solid(seamTang("X", ex * splitX, -yc, ex, c)));
+    const cuts = Array.from({ length: nEnd - 1 }, (_, i) => -p.overallWidth / 2 + ((i + 1) * p.overallWidth) / nEnd);
+    return sliceSegments(cap, "Y", nEnd, cuts, ex * xcEnd, x0, x1);
+  };
+
+  return [...longSegments(1), ...longSegments(-1), ...endSegments(1), ...endSegments(-1)];
 }
 
 export const perimeterParams: ParamDef[] = [
@@ -292,7 +364,10 @@ export const perimeterParams: ParamDef[] = [
     { key: "frontBoarderBinAdd", fusionName: "FRONT_BOARDER_BIN_ADD", label: "Front border bins", default: 3, unit: "", min: 0, max: 10, step: 1 },
     { key: "footThick", label: "Floor thickness", default: 1, unit: "mm", min: 0.6, max: 6, step: 0.2 },
     { key: "dividers", fusionName: "BOARDER_DIVIDERS", label: "Dividers per long side", default: 4, unit: "", min: 0, max: 12, step: 1 },
-    { key: "split", label: "Split into 4 pieces", default: 1, unit: "", min: 0, max: 1, step: 1 },
+    { key: "split", label: "Split into pieces", default: 1, unit: "", min: 0, max: 1, step: 1 },
+    { key: "bedWidth", label: "Printer bed width (0 = no limit)", default: 0, unit: "mm", min: 0, max: 1000, step: 1 },
+    { key: "bedDepth", label: "Printer bed depth (0 = no limit)", default: 0, unit: "mm", min: 0, max: 1000, step: 1 },
+    { key: "bedMargin", label: "Bed margin (per side)", default: 5, unit: "mm", min: 0, max: 30, step: 1 },
     { key: "dovetailWidth", fusionName: "BOARDER_DOVETAIL_WIDTH", label: "Dovetail width", default: 10, unit: "mm", min: 4, max: 30, step: 0.5 },
     { key: "dovetailDepth", fusionName: "BOARDER_DOVETAIL_DEPTH", label: "Dovetail depth", default: 5, unit: "mm", min: 2, max: 15, step: 0.5 },
     { key: "dovetailAngle", fusionName: "BOARDER_DOVETAIL_ANGLE", label: "Dovetail angle", default: 30, unit: "deg", min: 0, max: 45, step: 1 },
@@ -337,8 +412,9 @@ export const perimeter: ModelDef = {
   name: "Perimeter (frame)",
   description:
     "Liner frame that drops into the hard case: a tapered U-channel border " +
-    "around a gridded cavity, split into four dovetailed pieces for printing, " +
-    "with grid bumps, configurable dividers and print clearances.",
+    "around a gridded cavity, split into dovetailed pieces for printing (enter a " +
+    "printer bed size to auto-subdivide so every piece fits), with grid bumps, " +
+    "configurable dividers and print clearances.",
   params: perimeterParams,
   build: buildPerimeter,
 };
