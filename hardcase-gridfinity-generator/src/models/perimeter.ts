@@ -309,22 +309,23 @@ function splitPieces(frame: Shape3D, p: ParamValues): Shape3D[] {
   // interior seam. The key follows the wall — like the corner joints — because
   // it is built by adding/removing the tang FOOTPRINT to a segment's 2-D region
   // and intersecting the body, NOT by fusing a solid prism (which would leave a
-  // solid block). `band` is the seam's centre on the off-axis; `y0/y1`|`x0/x1`
-  // bound the rail across its width. Each seam: left segment gets the tang
-  // (region ∪ footprint), right segment gets the grown socket (region − footprint).
+  // solid block). `band` is the seam's centre on the off-axis. Only the slice
+  // `axis` is bounded into segments; the cross-axis spans the full half-plane
+  // (±big) so the body's own features are never clipped here — an end-cap rib
+  // protrudes past the wall face into the cavity, and clipping the cross-axis at
+  // the face (as an earlier version did) shears the rib off. Each seam: left
+  // segment gets the tang (region ∪ footprint), right the grown socket (− footprint).
   const sliceSegments = (
     body: Shape3D,
     axis: "X" | "Y",
     n: number,
     cuts: number[],
     band: number,
-    lo: number,
-    hi: number,
   ): Shape3D[] => {
     if (n === 1) return [body];
     const bounds = [-big, ...cuts, big];
     const seg = (a0: number, a1: number): Drawing =>
-      axis === "X" ? rect(a0, a1, lo, hi) : rect(lo, hi, a0, a1);
+      axis === "X" ? rect(a0, a1, -big, big) : rect(-big, big, a0, a1);
     return Array.from({ length: n }, (_, i) => {
       let region = seg(bounds[i], bounds[i + 1]);
       if (i < n - 1) region = region.fuse(seamTang(axis, cuts[i], band, 1)); // male tang past the far seam
@@ -345,7 +346,7 @@ function splitPieces(frame: Shape3D, p: ParamValues): Shape3D[] {
     const kind = sy > 0 ? "groove" : "rib";
     const rail = div(applyGridFeatures(frame.clone().intersect(solid(region0)), p, wallSpec("Y", sy, kind)), sy);
     const cuts = Array.from({ length: nLong - 1 }, (_, i) => -splitX + ((i + 1) * 2 * splitX) / nLong);
-    return sliceSegments(rail, "X", nLong, cuts, sy * yc, y0, y1);
+    return sliceSegments(rail, "X", nLong, cuts, sy * yc);
   };
 
   // One end cap (ex = +1 right / -1 left): full-width beyond the split with the
@@ -358,7 +359,7 @@ function splitPieces(frame: Shape3D, p: ParamValues): Shape3D[] {
       .cut(solid(seamTang("X", ex * splitX, yc, ex, c)))
       .cut(solid(seamTang("X", ex * splitX, -yc, ex, c)));
     const cuts = Array.from({ length: nEnd - 1 }, (_, i) => -p.overallWidth / 2 + ((i + 1) * p.overallWidth) / nEnd);
-    return sliceSegments(cap, "Y", nEnd, cuts, ex * xcEnd, x0, x1);
+    return sliceSegments(cap, "Y", nEnd, cuts, ex * xcEnd);
   };
 
   return [...longSegments(1), ...longSegments(-1), ...endSegments(1), ...endSegments(-1)];

@@ -154,6 +154,25 @@ const fitsBed = () => (shapes, p) => {
   });
   return { ok: bad.length === 0, msg: bad.length ? `exceed ${s}×${l}: ${bad.join(", ")}` : `all ≤ ${s}×${l} usable` };
 };
+// The +X end cap's grid ribs protrude past the wall face into the cavity; a bug
+// once sheared them off when the bed subdivided the cap (the slice clipped the
+// cross-axis at the face). Assert proud-rib material survives just inside the wall.
+const endCapRibsPresent = () => (shapes, p) => {
+  if (!(p.gridBump > 0 && p.bedWidth > 0 && p.bedDepth > 0)) return { ok: true, msg: "n/a (no bed / smooth)" };
+  const cavW = p.gridSpacing * (Math.floor(p.overallWidth / p.gridSpacing) - p.frontBoarderBinAdd);
+  const splitX = (p.gridSpacing * (Math.floor(p.overallLength / p.gridSpacing) - p.sideBoarderBinAdd)) / 2;
+  const b = p.gridBump, h = p.overallHeight;
+  const zone = slab("x", splitX - b + 0.3, splitX - 0.3) // thin shell just inside the +X wall, in the cavity
+    .clone()
+    .intersect(slab("y", -cavW / 2, cavW / 2))
+    .intersect(slab("z", 5, h - 5));
+  let v = 0;
+  for (const s of shapes) {
+    try { v += measureVolume(s.clone().intersect(zone.clone())); } catch { /* disjoint */ }
+  }
+  const want = 0.6 * Math.round(cavW / p.gridSpacing) * (b - 0.6) * p.wallThick * (h - 10); // ≥60% of nominal
+  return { ok: v > want, msg: `+X rib-zone volume ${v.toFixed(0)} mm³ (want > ${want.toFixed(0)}; ~0 ⇒ sheared)` };
+};
 
 // bin footprint: modules·grid − 2·clear, plus one WALL_BUMP rib on -X/+Y; tab on z.
 const binFootprintBBox = (p) => [
@@ -227,7 +246,7 @@ const SUITES = {
       { overallHeight: 70 },
       { bedWidth: 256, bedDepth: 256 },
       { bedWidth: 220, bedDepth: 220 },
-      { bedWidth: 180, bedDepth: 180 },
+      { bedWidth: 180, bedDepth: 180 }, // end cap subdivides (nEnd=2) → exercises endCapRibsPresent
       { bedWidth: 300, bedDepth: 150 }, // asymmetric: only the long rails split
     ],
     checks: [
@@ -235,6 +254,7 @@ const SUITES = {
       ["each piece is a single clean solid (no debris)", eachIsOneSolid()],
       ["assembled bbox = OVERALL_* (pieces stay in place)", bboxMatches(overallBBox)],
       ["every piece fits the bed", fitsBed()],
+      ["end-cap ribs survive subdivision", endCapRibsPresent()],
       ["cavity is open (hollow frame)", (s, p) => {
         const v = centerColumnVolume(s, 10, 10, p.overallHeight - 10);
         return { ok: v < 5, msg: `centre-column volume ${v.toFixed(1)} mm³ (want ~0)` };
