@@ -26,6 +26,10 @@ let currentModelId = models[0].id;
 let currentValues: ParamValues = defaultValues(models[0]);
 let buildToken = 0;
 let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+// Wait this long after the last parameter edit before rebuilding, so dragging a
+// slider or typing a value doesn't kick off a (potentially multi-second) build
+// on every keystroke — only once the input has settled.
+const REBUILD_DEBOUNCE_MS = 2000;
 
 function setStatus(text: string, isError = false): void {
   status.textContent = text;
@@ -52,7 +56,8 @@ async function rebuild(): Promise<void> {
 
 function scheduleRebuild(): void {
   clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(rebuild, 300);
+  setStatus("waiting for edits to settle…");
+  debounceTimer = setTimeout(rebuild, REBUILD_DEBOUNCE_MS);
 }
 
 function selectModel(id: string): void {
