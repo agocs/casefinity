@@ -148,7 +148,13 @@ function applyGridFeatures(shape: Shape3D, p: ParamValues, walls: WallSpec[] = A
 
   let out = shape;
   for (const w of walls) {
-    const centers = gridCenters(w.axis === "X" ? width : length, p.gridSpacing);
+    // Feature only the flat wall sections. A grid centre inside a rounded corner
+    // arc (|c| > span/2 − wallCornerRadius) would place a rib/groove on the curve,
+    // where no bin face registers; the ground truth leaves the corners clean.
+    const span = w.axis === "X" ? width : length;
+    const centers = gridCenters(span, p.gridSpacing).filter(
+      (c) => Math.abs(c) <= span / 2 - p.wallCornerRadius,
+    );
     // A block at each grid centre: `mag` = its centre's distance from the cavity
     // centre, `wide` = size along the wall, `deep` = size normal to the wall.
     const feat = (mag: number, wide: number, deep: number): Shape3D => {
