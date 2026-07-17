@@ -48,9 +48,10 @@ use these values (or a documented superset).
 
 **INV-1 (unified bump).** `WALL_BUMP` (bins) and `GRID_BUMP` (liner) are the same
 value `b = 1.50 mm`, and every **rib** (male feature), on a bin or on a liner, is
-`t = 1.20 mm` wide and stands `b` proud. The female features differ in detail (a
-bin *socket* is a clearanced through-slot with a backing boss; a liner *groove* is
-a blind relief — see §4), but they share `b` and `t`. A bin therefore registers
+`t = 1.20 mm` wide and stands `b` proud. The female features are near-identical: a
+bin *socket* and a liner *groove* are both a slot through the thin wall **backed by
+an interior boss** — a blind pocket that keeps the cavity closed — differing only
+in the slot's tangential clearance (see §4). All share `b` and `t`. A bin registers
 against a neighbouring bin and against the liner with compatible geometry. Any
 change to `b` or `t` MUST be applied to both families together.
 
@@ -113,13 +114,15 @@ with a bin's exterior in any of the two registrations:
 | Liner wall | Feature | Geometry |
 |---|---|---|
 | `−Y`, `+X` | **Rib** | `t = 1.20` wide, `b = 1.50` proud into the cavity (plus `t` embedded back into the wall). One per module. |
-| `+Y`, `−X` | **Groove** | `t = 1.20` wide (line-to-line with a rib), `b = 1.50` deep into the wall, opening `0.30 mm` proud of the cavity face as a mouth relief (feature box `b + 0.30 = 1.80` deep). One per module. |
+| `+Y`, `−X` | **Groove** | A slot `t = 1.20` wide (line-to-line with a rib), `b = 1.50` deep (from `0.30 mm` proud of the face), **backed by a boss `3t = 3.60` wide extending `t + b = 2.70` past the face** into the U-channel — a blind pocket, so the cavity is not opened. One per module. |
 
 **REQ-4.2.** The liner groove is `t` wide — the **same** width as a rib, with **no**
-added tangential clearance. The `0.30 mm` relief opens the groove mouth *toward the
-cavity* (a first-layer / elephant-foot allowance at the wall face); it is not
-registration clearance. The groove is a **flush relief**, not a precision locator
-(see REQ-4.3).
+added tangential clearance (line-to-line). Like the bin socket, the slot MUST be
+**backed by a boss** so it is a blind pocket that does not open the cavity into the
+U-channel hollow: the `b`-deep slot alone cuts clean through the `t`-thick inner
+wall and severs it. The `0.30 mm` mouth chamfer is a first-layer / elephant-foot
+allowance at the wall face, not registration clearance. Tangentially the groove is
+a relief, not a precision locator (see REQ-4.3).
 
 ### 4.3 Fit summary — two distinct interfaces
 
@@ -135,16 +138,16 @@ groove pairs are line-to-line reliefs.
    LOCATING:  rib t=1.20 ─►│ │◄─ socket s=1.40   →  0.10 mm/flank  (the clean hand-fit)
                            └─┘
    RELIEF:    rib t=1.20 ─►│ │◄─ groove t=1.20    →  0 nominal; seats on process tolerance
-                           └─┘   (groove clears the rib's DEPTH so the part sits flat)
+                           └─┘   (a blind slot+boss pocket; line-to-line width, not a locator)
 ```
 
 **REQ-4.3.** A part locates on its **socket** interfaces (the clearanced 0.10 mm/flank
 fit — this is what assembles cleanly by hand). The opposing **rib-in-groove** pair is
-a *relief* whose job is to clear the rib's `b` protrusion so the part seats flat
-against the wall; it is line-to-line in width and its practical fit is set by process
-tolerance and the `CLEAR` knob (§8.4). Designers MUST NOT treat the groove as a
-tight datum, and MUST NOT over-constrain a part by relying on both interfaces for
-precision simultaneously.
+a blind slot+boss pocket (structurally like the socket, so it closes the cavity) but
+with a **line-to-line** slot width, so *tangentially* it is a relief, not a clearanced
+locator: its practical fit is set by process tolerance and the `CLEAR` knob (§8.4).
+Designers MUST NOT treat the groove as a tight datum, and MUST NOT over-constrain a
+part by relying on both interfaces for precision simultaneously.
 
 ---
 

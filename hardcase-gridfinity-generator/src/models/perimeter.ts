@@ -139,17 +139,33 @@ function applyGridFeatures(shape: Shape3D, p: ParamValues, walls: WallSpec[] = A
   const solid = (rects: Draw[]) =>
     rects.reduce((a, r) => (a ? a.fuse(r) : r)).sketchOnPlane("XY", 0).extrude(p.overallHeight) as Shape3D;
 
+  // A groove's slot is `b`-deep but the wall is only `t` thick, so the slot cuts
+  // clean through and would read as an open slit into the U-channel hollow. Back
+  // it with a wider boss (like the bin socket's interior boss) so the female
+  // pocket is blind and the cavity stays closed — the bin rib seats against it.
+  const bossWide = 3 * t;
+  const bossDepth = t + b; // spans the wall plus GRID_BUMP into the hollow
+
   let out = shape;
   for (const w of walls) {
-    const deep = w.kind === "rib" ? ribDepth : grooveDepth;
-    const off = w.kind === "rib" ? ribOff : grooveOff;
     const centers = gridCenters(w.axis === "X" ? width : length, p.gridSpacing);
-    const rects = centers.map((c) =>
-      w.axis === "X"
-        ? rect(w.sign * (half.X + off), c, deep, t) // ±X wall: features along Y
-        : rect(c, w.sign * (half.Y + off), t, deep), // ±Y wall: features along X
-    );
-    out = w.kind === "rib" ? out.fuse(solid(rects)) : out.cut(solid(rects));
+    // A block at each grid centre: `mag` = its centre's distance from the cavity
+    // centre, `wide` = size along the wall, `deep` = size normal to the wall.
+    const feat = (mag: number, wide: number, deep: number): Shape3D => {
+      const rects = centers.map((c) =>
+        w.axis === "X"
+          ? rect(w.sign * mag, c, deep, wide) // ±X wall: normal along X, along-wall in Y
+          : rect(c, w.sign * mag, wide, deep), // ±Y wall: along-wall in X, normal along Y
+      );
+      return solid(rects);
+    };
+    if (w.kind === "rib") {
+      out = out.fuse(feat(half[w.axis] + ribOff, t, ribDepth));
+    } else {
+      out = out
+        .fuse(feat(half[w.axis] + bossDepth / 2, bossWide, bossDepth)) // backing boss
+        .cut(feat(half[w.axis] + grooveOff, t, grooveDepth)); // slot through the wall
+    }
   }
   return out;
 }
