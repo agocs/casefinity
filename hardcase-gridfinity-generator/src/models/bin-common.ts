@@ -114,8 +114,27 @@ export function addPullTab(bin: Shape3D, w: number, d: number, h: number, p: Par
   const t = p.wallThick;
   bin = bin.fuse(box(w, t, h, h + p.pullTabHeight, 0, d / 2 - t / 2));
   const yInner = d / 2 - t;
+  // The gusset's reach into the bin (in Y) grows with wallThick (narrower
+  // yInner) and with pullTabHeight (steeper/longer 45° diagonal). Both faces
+  // it sits on (+X, -X) carry the outermost rib/socket at the same Y (both use
+  // lengthModules centres — REQ-3.4 centring). Left unclamped, a big enough
+  // wallThick or pullTabHeight lets the gusset reach past that feature and
+  // fuse in directly above its footprint: harmless over a proud rib, but over
+  // a socket it caps the open slot from above with unrelated print geometry —
+  // an overhang requiring bridging/support material inside a female pocket
+  // nobody can clean out (an occluded registration feature). Clamp the reach,
+  // not PULL_TAB_HT itself: the wall extension still rises the full height,
+  // only the diagonal gets steeper once it nears the corner feature. At the
+  // parameter defaults the natural margin already clears this floor, so the
+  // clamp is inactive there (same pattern as addDividers' outerMag clamp).
+  const cornerCenters = moduleCenters(p.lengthModules, p.gridSpacing);
+  const outerCenter = Math.max(...cornerCenters);
+  const { socketWidth } = interlockDims(p, p.wallBump);
+  const dangerMargin = 0.5;
+  const maxReach = yInner - (outerCenter + socketWidth / 2 + dangerMargin);
+  const reach = Math.max(0.5, Math.min(p.pullTabHeight, maxReach));
   const gusset = draw([yInner, h])
-    .lineTo([yInner - p.pullTabHeight, h])
+    .lineTo([yInner - reach, h])
     .lineTo([yInner, h + p.pullTabHeight])
     .close();
   for (const x0 of [w / 2 - t, -w / 2]) {

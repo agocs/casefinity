@@ -204,14 +204,29 @@ function outerInnerY(z: number, p: ParamValues): number {
  *
  * The rib's outer edge is drawn as a Y-Z profile that follows the wall taper and
  * bottom fillet, so it meets the case wall at every height without an expensive
- * intersect against the outer loft. Applied last (after the grid grooves) so a
- * groove can't slice a rib.
+ * intersect against the outer loft. Applied BEFORE the grid features (see the
+ * callers), not after: a divider coincides in X with a grid module centre by
+ * construction, and on the +Y/-X (groove) walls, cutting the groove after the
+ * divider's fuse is what keeps the groove open — see applyGridFeatures's
+ * caller-ordering note.
  */
 function addDividers(shape: Shape3D, p: ParamValues, signY: 1 | -1): Shape3D {
   const centers = dividerCenters(p);
   if (!centers.length) return shape;
   const h = p.overallHeight;
-  const innerMag = cavityDims(p).width / 2 - p.gridBump; // bump tip (magnitude)
+  // The divider's cavity-facing edge must sit flush with whatever that wall
+  // actually presents at the cavity boundary — NOT the same offset on both
+  // walls. The -Y wall carries a rib (ALL_WALLS convention): its per-module
+  // rib already reaches GRID_BUMP past the face, so flushing the divider to
+  // the rib tip avoids a visible step. The +Y wall carries a groove (a
+  // recess, not a protrusion): there is no bump to flush against, so the
+  // divider must stop AT the face. Using the rib-tip offset on the groove
+  // wall too made the divider poke GRID_BUMP into the open cavity as a
+  // phantom nub — and once the groove cut (correctly) runs last, that nub
+  // gets sliced clean off the frame as floating debris (a piece the split
+  // count and one-clean-solid checks below both catch).
+  const isRibWall = signY < 0;
+  const innerMag = isRibWall ? cavityDims(p).width / 2 - p.gridBump : cavityDims(p).width / 2;
   const inner = signY * innerMag;
   const zs = [0, 0.3, 0.6, 1].map((f) => f * p.bottomCornerRadius).concat(h);
   // Profile in the Y-Z plane: inner edge straight at `inner`, outer edge tracing
@@ -347,7 +362,11 @@ function splitPieces(frame: Shape3D, p: ParamValues): Shape3D[] {
 
   // One long side-rail (sy = +1 top / -1 bottom): the full featured rail, then
   // sliced into nLong in-line segments. Features/dividers are applied to the
-  // whole rail first so slicing (intersect) clips them per segment.
+  // whole rail first so slicing (intersect) clips them per segment. Dividers
+  // are fused BEFORE the grid groove cut (not after) — same reasoning as the
+  // unsplit path in buildPerimeter: a divider sits at the same X as a grid
+  // module centre, so cutting the groove last is what keeps it open instead of
+  // the divider's fuse silently refilling it.
   const longSegments = (sy: 1 | -1): Shape3D[] => {
     const y0 = sy > 0 ? 0 : -big;
     const y1 = sy > 0 ? big : 0;
@@ -355,7 +374,7 @@ function splitPieces(frame: Shape3D, p: ParamValues): Shape3D[] {
       .fuse(seamTang("X", splitX, sy * yc, 1))
       .fuse(seamTang("X", -splitX, sy * yc, -1));
     const kind = sy > 0 ? "groove" : "rib";
-    const rail = div(applyGridFeatures(frame.clone().intersect(solid(region0)), p, wallSpec("Y", sy, kind)), sy);
+    const rail = applyGridFeatures(div(frame.clone().intersect(solid(region0)), sy), p, wallSpec("Y", sy, kind));
     const cuts = Array.from({ length: nLong - 1 }, (_, i) => -splitX + ((i + 1) * 2 * splitX) / nLong);
     return sliceSegments(rail, "X", nLong, cuts, sy * yc);
   };
@@ -431,8 +450,15 @@ export function buildPerimeter(p: ParamValues): Shape3D | Shape3D[] {
     // When splitting, grid features + dividers are added per piece (splitPieces);
     // otherwise apply them to the whole frame.
     if (p.split) return splitPieces(frame, p);
-    let out = p.gridBump > 0 ? applyGridFeatures(frame, p) : frame;
-    if (p.dividers > 0) out = addDividers(addDividers(out, p, 1), p, -1);
+    // Dividers FIRST, grid features (grooves) LAST: a divider coincides in X
+    // with a grid module centre by construction (dividerCenters draws from the
+    // same set gridCenters does), so on the +Y/-X (groove) walls a divider's
+    // additive fuse would otherwise refill whatever a groove cut had carved out
+    // there. Cutting the groove last guarantees it always wins — it stays a
+    // clean blind pocket even where a divider crosses it (the wider backing
+    // boss keeps the divider connected to the frame either side of the notch).
+    let out = p.dividers > 0 ? addDividers(addDividers(frame, p, 1), p, -1) : frame;
+    if (p.gridBump > 0) out = applyGridFeatures(out, p);
     return out;
 }
 

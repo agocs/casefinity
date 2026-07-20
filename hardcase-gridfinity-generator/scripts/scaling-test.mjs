@@ -287,6 +287,61 @@ const grooveWidthTracksRibWidth = () => (shapes, p) => {
   return { ok, msg: `groove@${c0}: in-slot ${vSlot.toFixed(1)} mm³ (want ~0), flank ${vFlank.toFixed(1)} mm³ (want > ${wantFlank.toFixed(1)})` };
 };
 
+// Regression: a long-side divider sits at the same X as a grid module centre
+// by construction (dividerCenters draws from the same set gridCenters does),
+// so on the +Y/-X (groove) walls a divider's fuse used to silently refill
+// whatever the groove cut had carved there — a fully-occluded female feature.
+// Probe the +Y groove at the first divider's X and assert it's still hollow.
+function perimeterDividerCenters(p) {
+  const { length } = perimeterCavity(p);
+  const g = gridCentersIn(length, p.gridSpacing, 0); // dividerCenters applies no corner filter
+  const n = Math.min(Math.round(p.dividers), g.length);
+  if (n <= 0) return [];
+  return Array.from({ length: n }, (_, i) => g[Math.round(((g.length - 1) * (i + 1)) / (n + 1))]);
+}
+const dividerGroovesStayOpen = () => (shapes, p) => {
+  if (!(p.gridBump > 0)) return { ok: true, msg: "n/a (no grid bumps)" };
+  const divCenters = perimeterDividerCenters(p);
+  if (!divCenters.length) return { ok: true, msg: "n/a (no dividers)" };
+  const { width } = perimeterCavity(p);
+  const b = p.gridBump, h = p.overallHeight;
+  const grooveDepth = b + 0.3;
+  const halfY = width / 2;
+  const cx = divCenters[0];
+  const zone = slab("x", cx - p.ribWidth / 2 + 0.15, cx + p.ribWidth / 2 - 0.15)
+    .clone()
+    .intersect(slab("y", halfY - 0.1, halfY + grooveDepth - 0.35))
+    .intersect(slab("z", 2, h - 2));
+  const v = zoneVolume(shapes, zone);
+  return { ok: v < 2, msg: `+Y groove at divider X=${cx.toFixed(0)}: ${v.toFixed(1)} mm³ (want ~0; was fully refilled pre-fix)` };
+};
+
+// Regression: the pull tab's corner gusset reaches into the bin as WALL_THICK
+// shrinks yInner or PULL_TAB_HT lengthens the 45° diagonal. Both gusset
+// corners sit on the same Y as the outermost +X-socket/−X-rib centre
+// (lengthModules centring, REQ-3.4); left unclamped the gusset caps the
+// socket's open mouth from directly above — harmless over a proud rib, but
+// over a socket it's an occluded female feature (an overhang needing bridging
+// support inside a slot nobody can clean out).
+const pullTabClearsSocket = () => (shapes, p) => {
+  if (!(p.pullTabHeight > 0)) return { ok: true, msg: "n/a (no pull tab)" };
+  const w = p.widthModules * p.gridSpacing - 2 * p.clear;
+  const h = p.overallHeight;
+  const bump = p.wallBump;
+  const slotW = p.ribWidth + 2 * p.clear;
+  const centers = Array.from(
+    { length: p.lengthModules },
+    (_, i) => (i - (p.lengthModules - 1) / 2) * p.gridSpacing,
+  );
+  const c0 = centers.reduce((a, c) => (c > a ? c : a), -Infinity); // outermost, nearest +Y
+  const zone = slab("x", w / 2 - bump, w / 2 + 0.3)
+    .clone()
+    .intersect(slab("y", c0 - slotW / 2, c0 + slotW / 2))
+    .intersect(slab("z", h + 0.2, h + p.pullTabHeight));
+  const v = zoneVolume([shapes[0]], zone);
+  return { ok: v < 0.5, msg: `material directly above +X socket footprint, z∈(h,h+tabHt]: ${v.toFixed(2)} mm³ (want ~0)` };
+};
+
 // Bin flavour of the same invariants: -X ribs are RIB_WIDTH × WALL_BUMP, and
 // the +X socket slot is RIB_WIDTH + 2·CLEAR wide, whatever WALL_THICK is.
 const binRibSocketDims = () => (shapes, p) => {
@@ -332,6 +387,8 @@ const SUITES = {
     // REQ-4.4 threshold (t ≥ 2·bump → boss-less blind sockets in the flat wall);
     // ribWidth 1.8 proves the registration widths track RIB_WIDTH, and the
     // wallThick spreads prove they DON'T track WALL_THICK (spec INV-2).
+    // pullTabHeight 8 and the combined wallThick+pullTabHeight variant exercise
+    // the pull-tab/socket-occlusion regression (pullTabClearsSocket).
     variants: [
       {},
       { widthModules: 2, lengthModules: 5 },
@@ -340,12 +397,15 @@ const SUITES = {
       { wallThick: 2 },
       { wallThick: 3 },
       { ribWidth: 1.8 },
+      { pullTabHeight: 8 },
+      { wallThick: 3, pullTabHeight: 15 },
     ],
     checks: [
       ["shape count", shapeCount(1)],
       ["one connected solid", (s) => ({ ok: solidCount(s[0]) === 1, msg: `${solidCount(s[0])} solids` })],
       ["bbox = footprint formula", bboxMatches(binFootprintBBox)],
       ["rib/socket dims track RIB_WIDTH, not WALL_THICK", binRibSocketDims()],
+      ["pull tab doesn't cap the +X socket from above", pullTabClearsSocket()],
       ["floor at bottom, cavity open above", (s, p) => {
         // Compare per-mm cross-sections: the floor slab is nearly the full
         // footprint, the mid slab is walls only — a ratio in absolute volumes
@@ -360,10 +420,11 @@ const SUITES = {
   "bin-with-lid": {
     // wallThick 2: the lid seat legitimately tracks the wall, but the exterior
     // registration features must not (INV-2) — binRibSocketDims pins them.
-    variants: [{}, { widthModules: 4, lengthModules: 2 }, { overallHeight: 70 }, { lidLabel: "AB" }, { wallThick: 2 }],
+    variants: [{}, { widthModules: 4, lengthModules: 2 }, { overallHeight: 70 }, { lidLabel: "AB" }, { wallThick: 2 }, { pullTabHeight: 9 }],
     checks: [
       ["shape count (body+lid)", shapeCount(2)],
       ["rib/socket dims track RIB_WIDTH, not WALL_THICK", binRibSocketDims()],
+      ["pull tab doesn't cap the +X socket from above", pullTabClearsSocket()],
       ["lid does not interpenetrate body (seat cut)", (s) => {
         let ov = 0;
         try { ov = measureVolume(s[0].clone().intersect(s[1].clone())); } catch { /* disjoint */ }
@@ -381,12 +442,13 @@ const SUITES = {
   "bin-double-sided": {
     // wallThick 2.5 runs before the heavy 5×5 build: as the last variant it hit
     // OCCT heap exhaustion and slabVolume's throw-guard read as zero volumes.
-    variants: [{}, { overallHeight: 80 }, { overallHeight: 150 }, { wallThick: 2.5 }, { widthModules: 3, lengthModules: 3 }, { widthModules: 5, lengthModules: 5 }],
+    variants: [{}, { overallHeight: 80 }, { overallHeight: 150 }, { wallThick: 2.5 }, { pullTabHeight: 9 }, { widthModules: 3, lengthModules: 3 }, { widthModules: 5, lengthModules: 5 }],
     checks: [
       ["shape count (body+2 lids)", shapeCount(3)],
       ["body is one connected solid", (s) => ({ ok: solidCount(s[0]) === 1, msg: `${solidCount(s[0])} solids` })],
       ["bbox = footprint formula", bboxMatches(binFootprintBBox)],
       ["rib/socket dims track RIB_WIDTH, not WALL_THICK", binRibSocketDims()],
+      ["pull tab doesn't cap the +X socket from above", pullTabClearsSocket()],
       // One peakSlab scan serves both assertions (it is ~55 boolean ops — the
       // most expensive probe in the suite).
       ["central floor at OVERALL_HT/2, open at both ends", (s, p) => {
@@ -423,6 +485,7 @@ const SUITES = {
       ["cavity opening = N·P modules exactly (INV-7, any t)", cavityModuleExact()],
       ["grid ribs are RIB_WIDTH × GRID_BUMP (INV-2)", gridRibDimsTrackRibWidth()],
       ["grooves are RIB_WIDTH wide, blind in any wall (INV-2/REQ-4.4)", grooveWidthTracksRibWidth()],
+      ["dividers don't refill the grooves they cross", dividerGroovesStayOpen()],
       ["cavity is open (hollow frame)", (s, p) => {
         const v = centerColumnVolume(s, 10, 10, p.overallHeight - 10);
         return { ok: v < 5, msg: `centre-column volume ${v.toFixed(1)} mm³ (want ~0)` };
@@ -453,6 +516,7 @@ const SUITES = {
       ["cavity opening = N·P modules exactly (INV-7, any t)", cavityModuleExact()],
       ["grid ribs are RIB_WIDTH × GRID_BUMP (INV-2)", gridRibDimsTrackRibWidth()],
       ["grooves are RIB_WIDTH wide, blind in any wall (INV-2/REQ-4.4)", grooveWidthTracksRibWidth()],
+      ["dividers don't refill the grooves they cross", dividerGroovesStayOpen()],
       ["cavity is open (hollow frame)", (s, p) => {
         const v = centerColumnVolume(s, 10, 10, p.overallHeight - 10);
         return { ok: v < 5, msg: `centre-column volume ${v.toFixed(1)} mm³ (want ~0)` };
