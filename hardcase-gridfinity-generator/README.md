@@ -67,6 +67,7 @@ invariant breaks; a couple of pre-existing fragilities are marked `XFAIL`
 | Bin, double sided | complete — open tube + central floor with concave hopper fillet + interlock ribs + pull tab + 2 chamfered lids | bbox exact; body 68.3k vs 68.2k, total (body+2 lids) 87.3k vs 87.4k (0.03%) |
 | Perimeter template | complete — two 1mm test slices of the case wall, each a closed frame (rounded floor + tapered walls + top cap), across the width and the length | bbox exact; per-slice volume within ~1% |
 | Smooth perimeter (42 grid) | complete — reuses perimeter build (42mm grid, smooth/no bumps) | bbox exact; same foot/divider simplifications as perimeter |
+| Perimeter, square corners (beta) | new design, not a port — reuses perimeter build with a squared (not rounded) cavity corner, so a bin can occupy the corner-most grid cell flush; outer wall unchanged (still fits the case's rounded corner/bottom) | no ground truth (not an original `.f3d`, no such variant exists); smoke locks self-derived bbox 350×250×110 and volume 324232; `npm run scaling perimeter-square-corners` guards the squared-corner invariant |
 | Solid block | complete — the Bin (no lid) body with the interior cavity left uncut (`buildBinBody(p, true)`); keeps footprint, interlock ribs/sockets and pull tab. Stock for subtracting custom tool-holder pockets in CAD | no ground truth (not an original `.f3d`); smoke locks self-derived bbox 46.3×46.3×115 and volume 220848 |
 
 ## Fitting the perimeter to your printer

@@ -241,6 +241,25 @@ const cavityModuleExact = () => (shapes, p) => {
   return { ok, msg: `cavity-interior intrusion ${vIn.toFixed(1)} mm³ (want ~0); wall-at-boundary ${vWall.toFixed(1)} mm³ (want ≳ 6)` };
 };
 
+// perimeter-square-corners: the cavity corner must be genuinely square, not
+// just a smaller rounding — assert a whole corner-module-sized cell at the
+// cavity's outer corner is mostly void (a bin-sized footprint fits flush
+// there), unlike the base perimeter where WALL_CORNER_RADIUS's arc eats a
+// large chunk of that same cell.
+const cavityCornerIsSquare = () => (shapes, p) => {
+  const { length, width } = perimeterCavity(p);
+  const halfL = length / 2, halfW = width / 2;
+  const n = p.gridSpacing;
+  const cellZone = slab("x", halfL - n, halfL - 0.2)
+    .clone()
+    .intersect(slab("y", halfW - n, halfW - 0.2))
+    .intersect(slab("z", 3, p.overallHeight - 3));
+  const v = zoneVolume(shapes, cellZone);
+  const cellMax = n * n * (p.overallHeight - 6);
+  const ok = v < 0.05 * cellMax; // well under the ~8% a 15.5mm rounded corner leaves
+  return { ok, msg: `corner-module cell occupancy ${v.toFixed(0)} / ${cellMax.toFixed(0)} mm³ (${((v / cellMax) * 100).toFixed(1)}%, want < 5%)` };
+};
+
 // INV-1/INV-2: grid ribs are RIB_WIDTH wide × GRID_BUMP proud, independent of
 // WALL_THICK. The proud-rib band just inside the -Y wall contains only ribs
 // (and dividers, which are rib-width and coincide with grid centres), so its
@@ -533,6 +552,33 @@ const SUITES = {
       ["each piece is a single clean solid", eachIsOneSolid()],
       ["assembled bbox = OVERALL_*", bboxMatches(overallBBox)],
       ["every piece fits the bed", fitsBed()],
+    ],
+  },
+  "perimeter-square-corners": {
+    // 250×180 and a bed-fit split exercise the same debris/inversion regressions
+    // the base perimeter suite guards; the corner check is the model's reason
+    // to exist. gridSpacing 20 changes which module lands nearest the corner.
+    variants: [
+      {},
+      { overallLength: 250, overallWidth: 180 },
+      { bedWidth: 220, bedDepth: 220 },
+      { gridSpacing: 20 },
+    ],
+    checks: [
+      ["piece count (bed-fit split)", pieceCountMatches()],
+      ["each piece is a single clean solid (no debris)", eachIsOneSolid()],
+      ["assembled bbox = OVERALL_*", bboxMatches(overallBBox)],
+      ["every piece fits the bed", fitsBed()],
+      // (INV-7's cavity-dimension formula is unchanged by this model and
+      // already guarded by the base perimeter suite; cavityModuleExact's
+      // no-intrusion strip assumes the WALL_CORNER_RADIUS exclusion margin,
+      // which this model deliberately removes — a corner rib legitimately
+      // sits in that strip here, so that check doesn't apply.)
+      ["cavity corner is square (bin-sized cell mostly void)", cavityCornerIsSquare()],
+      ["cavity is open (hollow frame)", (s, p) => {
+        const v = centerColumnVolume(s, 10, 10, p.overallHeight - 10);
+        return { ok: v < 5, msg: `centre-column volume ${v.toFixed(1)} mm³ (want ~0)` };
+      }],
     ],
   },
   "perimeter-template": {
