@@ -83,6 +83,37 @@ function peakSlab(shape, z0, z1, step = 2) {
   return { z: bz, v: best };
 }
 
+/** Total volume of all shapes inside an arbitrary zone solid. */
+function zoneVolume(shapes, zone) {
+  let v = 0;
+  for (const s of shapes) {
+    try {
+      v += measureVolume(s.clone().intersect(zone.clone()));
+    } catch {
+      /* disjoint/degenerate intersection */
+    }
+  }
+  return v;
+}
+
+/** Liner cavity opening (mm) — mirrors cavityDims in perimeter.ts: a function
+ * of OVERALL, GRID_SPACING and BIN_ADD only; wall thickness must not appear. */
+function perimeterCavity(p) {
+  return {
+    length: p.gridSpacing * (Math.floor(p.overallLength / p.gridSpacing) - p.sideBoarderBinAdd),
+    width: p.gridSpacing * (Math.floor(p.overallWidth / p.gridSpacing) - p.frontBoarderBinAdd),
+  };
+}
+
+/** Grid-cell centres along a span, excluding those inside the rounded corners
+ * (mirrors gridCenters + the corner filter in applyGridFeatures). */
+function gridCentersIn(span, spacing, cornerMargin) {
+  const n = Math.round(span / spacing);
+  return Array.from({ length: n }, (_, i) => (i - (n - 1) / 2) * spacing).filter(
+    (c) => Math.abs(c) <= span / 2 - cornerMargin,
+  );
+}
+
 function centerColumnVolume(shapes, half, z0, z1) {
   const col = slab("x", -half, half)
     .clone()
@@ -126,6 +157,7 @@ const eachIsOneSolid = () => (shapes) => {
 // splitPieces (2 long rails + 2 end caps, each subdivided to fit the bed).
 // Kept in sync with the model by hand, like binFootprintBBox.
 const perimeterPieceCount = (p) => {
+  if (!p.split) return 1;
   const cavLen = p.gridSpacing * (Math.floor(p.overallLength / p.gridSpacing) - p.sideBoarderBinAdd);
   const splitX = cavLen / 2;
   const depth = p.dovetailDepth;
@@ -170,8 +202,119 @@ const endCapRibsPresent = () => (shapes, p) => {
   for (const s of shapes) {
     try { v += measureVolume(s.clone().intersect(zone.clone())); } catch { /* disjoint */ }
   }
-  const want = 0.6 * Math.round(cavW / p.gridSpacing) * (b - 0.6) * p.wallThick * (h - 10); // ≥60% of nominal
+  const want = 0.6 * Math.round(cavW / p.gridSpacing) * (b - 0.6) * p.ribWidth * (h - 10); // ≥60% of nominal
   return { ok: v > want, msg: `+X rib-zone volume ${v.toFixed(0)} mm³ (want > ${want.toFixed(0)}; ~0 ⇒ sheared)` };
+};
+
+// INV-2 + INV-7: the cavity opening must stay exactly N·P modules whatever the
+// wall thickness — the inner wall thickens OUTWARD into the border. Two probes:
+// (a) the cavity inset by the bump depth must be empty (nothing, wall included,
+//     intrudes past the grid ribs), and
+// (b) wall material must sit immediately outside the cavity boundary on a plain
+//     stretch of wall (between grid features) — i.e. the inner face is AT N·P,
+//     neither pushed in (a) nor pulled out (b).
+const cavityModuleExact = () => (shapes, p) => {
+  const { length, width } = perimeterCavity(p);
+  const b = Math.max(p.gridBump, 0.5);
+  const h = p.overallHeight;
+  const r = p.wallCornerRadius;
+  // Two cross-strips instead of one box: a sharp-cornered box would poke into
+  // the cavity's rounded corners (legitimate wall material) and false-fail.
+  const zSpan = slab("z", 1, h - 1);
+  const stripX = slab("x", -(length / 2 - r), length / 2 - r)
+    .clone()
+    .intersect(slab("y", -(width / 2 - b - 0.2), width / 2 - b - 0.2))
+    .intersect(zSpan.clone());
+  const stripY = slab("x", -(length / 2 - b - 0.2), length / 2 - b - 0.2)
+    .clone()
+    .intersect(slab("y", -(width / 2 - r), width / 2 - r))
+    .intersect(zSpan.clone());
+  const vIn = zoneVolume(shapes, stripX) + zoneVolume(shapes, stripY);
+  const centers = gridCentersIn(width, p.gridSpacing, p.wallCornerRadius);
+  const ym = centers[0] + p.gridSpacing / 2; // between two -X-wall grid features
+  const shell = slab("x", -length / 2 - 0.35, -length / 2 - 0.05)
+    .clone()
+    .intersect(slab("y", ym - 1, ym + 1))
+    .intersect(slab("z", h / 2 - 5, h / 2 + 5));
+  const vWall = zoneVolume(shapes, shell);
+  const ok = vIn < 5 && vWall > 3;
+  return { ok, msg: `cavity-interior intrusion ${vIn.toFixed(1)} mm³ (want ~0); wall-at-boundary ${vWall.toFixed(1)} mm³ (want ≳ 6)` };
+};
+
+// INV-1/INV-2: grid ribs are RIB_WIDTH wide × GRID_BUMP proud, independent of
+// WALL_THICK. The proud-rib band just inside the -Y wall contains only ribs
+// (and dividers, which are rib-width and coincide with grid centres), so its
+// volume pins both rib dimensions; a rib whose width followed a 6 mm wall
+// would read ~5× over.
+const gridRibDimsTrackRibWidth = () => (shapes, p) => {
+  if (!(p.gridBump > 0)) return { ok: true, msg: "n/a (no grid bumps)" };
+  const { length, width } = perimeterCavity(p);
+  const b = p.gridBump;
+  const h = p.overallHeight;
+  const centers = gridCentersIn(length, p.gridSpacing, p.wallCornerRadius);
+  const zone = slab("y", -width / 2 + 0.2, -width / 2 + b - 0.2)
+    .clone()
+    .intersect(slab("x", -(length / 2 - p.wallCornerRadius), length / 2 - p.wallCornerRadius))
+    .intersect(slab("z", 5, h - 5));
+  const v = zoneVolume(shapes, zone);
+  const want = centers.length * p.ribWidth * (b - 0.4) * (h - 10);
+  const ok = v > 0.7 * want && v < 1.45 * want;
+  return { ok, msg: `-Y rib-band ${v.toFixed(0)} mm³ (want ≈ ${want.toFixed(0)} from RIB_WIDTH=${p.ribWidth})` };
+};
+
+// INV-1/INV-2 + REQ-4.4: the +Y groove slot is RIB_WIDTH wide regardless of
+// WALL_THICK — empty inside the slot, solid on its flank. On a thick wall
+// (t ≥ 2·bump) the boss is dropped and the slot is a plain blind pocket in the
+// flat wall; the same probes hold in both regimes.
+const grooveWidthTracksRibWidth = () => (shapes, p) => {
+  if (!(p.gridBump > 0)) return { ok: true, msg: "n/a (no grid bumps)" };
+  const { length, width } = perimeterCavity(p);
+  const b = p.gridBump;
+  const h = p.overallHeight;
+  const centers = gridCentersIn(length, p.gridSpacing, p.wallCornerRadius);
+  const c0 = centers.reduce((a, c) => (Math.abs(c) < Math.abs(a) ? c : a), Infinity);
+  const yBand = slab("y", width / 2 + 0.1, width / 2 + b - 0.35).clone().intersect(slab("z", 2, h - 2));
+  const vSlot = zoneVolume(
+    shapes,
+    yBand.clone().intersect(slab("x", c0 - p.ribWidth / 2 + 0.2, c0 + p.ribWidth / 2 - 0.2)),
+  );
+  const vFlank = zoneVolume(
+    shapes,
+    yBand.clone().intersect(slab("x", c0 + p.ribWidth / 2 + 0.1, c0 + p.ribWidth / 2 + 0.5)),
+  );
+  const wantFlank = 0.5 * 0.4 * (b - 0.45) * (h - 4);
+  const ok = vSlot < 2 && vFlank > wantFlank;
+  return { ok, msg: `groove@${c0}: in-slot ${vSlot.toFixed(1)} mm³ (want ~0), flank ${vFlank.toFixed(1)} mm³ (want > ${wantFlank.toFixed(1)})` };
+};
+
+// Bin flavour of the same invariants: -X ribs are RIB_WIDTH × WALL_BUMP, and
+// the +X socket slot is RIB_WIDTH + 2·CLEAR wide, whatever WALL_THICK is.
+const binRibSocketDims = () => (shapes, p) => {
+  const w = p.widthModules * p.gridSpacing - 2 * p.clear;
+  const b = p.wallBump;
+  const h = p.overallHeight;
+  const rw = p.ribWidth;
+  const s = shapes[0];
+  const ribZone = slab("x", -w / 2 - b + 0.2, -w / 2 - 0.2).clone().intersect(slab("z", 2, h - 2));
+  const vRib = zoneVolume([s], ribZone);
+  const wantRib = p.lengthModules * rw * (b - 0.4) * (h - 4);
+  const centers = Array.from(
+    { length: p.lengthModules },
+    (_, i) => (i - (p.lengthModules - 1) / 2) * p.gridSpacing,
+  );
+  const c0 = centers.reduce((a, c) => (Math.abs(c) < Math.abs(a) ? c : a), Infinity);
+  const slotW = rw + 2 * p.clear;
+  // Inside the wall where the slot is cut, shallow enough to clear the boss.
+  const xBand = slab("x", w / 2 - b + 0.5, w / 2 - 0.2).clone().intersect(slab("z", 2, h - 2));
+  const vSlot = zoneVolume([s], xBand.clone().intersect(slab("y", c0 - slotW / 2 + 0.15, c0 + slotW / 2 - 0.15)));
+  const vFlank = zoneVolume([s], xBand.clone().intersect(slab("y", c0 + slotW / 2 + 0.1, c0 + slotW / 2 + 0.5)));
+  const wantFlank = 0.5 * 0.4 * (b - 0.7) * (h - 4);
+  const ribOk = vRib > 0.7 * wantRib && vRib < 1.45 * wantRib;
+  const ok = ribOk && vSlot < 2 && vFlank > wantFlank;
+  return {
+    ok,
+    msg: `-X ribs ${vRib.toFixed(0)} mm³ (want ≈ ${wantRib.toFixed(0)}); +X socket@${c0}: in-slot ${vSlot.toFixed(1)} (want ~0), flank ${vFlank.toFixed(1)} (want > ${wantFlank.toFixed(1)})`,
+  };
 };
 
 // bin footprint: modules·grid − 2·clear, plus one WALL_BUMP rib on -X/+Y; tab on z.
@@ -185,22 +328,42 @@ const overallBBox = (p) => [p.overallLength, p.overallWidth, p.overallHeight];
 // ---------- per-model suites ----------
 const SUITES = {
   "bin-no-lid": {
-    variants: [{}, { widthModules: 2, lengthModules: 5 }, { overallHeight: 60 }, { gridSpacing: 20 }],
+    // wallThick 2 keeps the socket bosses (t < 2·bump); wallThick 3 crosses the
+    // REQ-4.4 threshold (t ≥ 2·bump → boss-less blind sockets in the flat wall);
+    // ribWidth 1.8 proves the registration widths track RIB_WIDTH, and the
+    // wallThick spreads prove they DON'T track WALL_THICK (spec INV-2).
+    variants: [
+      {},
+      { widthModules: 2, lengthModules: 5 },
+      { overallHeight: 60 },
+      { gridSpacing: 20 },
+      { wallThick: 2 },
+      { wallThick: 3 },
+      { ribWidth: 1.8 },
+    ],
     checks: [
       ["shape count", shapeCount(1)],
       ["one connected solid", (s) => ({ ok: solidCount(s[0]) === 1, msg: `${solidCount(s[0])} solids` })],
       ["bbox = footprint formula", bboxMatches(binFootprintBBox)],
+      ["rib/socket dims track RIB_WIDTH, not WALL_THICK", binRibSocketDims()],
       ["floor at bottom, cavity open above", (s, p) => {
-        const floor = slabVolume(s[0], "z", 0, p.floorThick + 0.5);
-        const mid = slabVolume(s[0], "z", p.overallHeight / 2, p.overallHeight / 2 + 2);
-        return { ok: floor > 3 * mid && mid > 0, msg: `floor slab ${floor.toFixed(0)} vs mid ${mid.toFixed(0)}` };
+        // Compare per-mm cross-sections: the floor slab is nearly the full
+        // footprint, the mid slab is walls only — a ratio in absolute volumes
+        // would falsely fail for thick (but legitimate) walls.
+        const zf = p.floorThick + 0.5;
+        const floor = slabVolume(s[0], "z", 0, zf) / zf;
+        const mid = slabVolume(s[0], "z", p.overallHeight / 2, p.overallHeight / 2 + 2) / 2;
+        return { ok: floor > 2 * mid && mid > 0, msg: `floor ${floor.toFixed(0)} mm³/mm vs mid ${mid.toFixed(0)} mm³/mm` };
       }],
     ],
   },
   "bin-with-lid": {
-    variants: [{}, { widthModules: 4, lengthModules: 2 }, { overallHeight: 70 }, { lidLabel: "AB" }],
+    // wallThick 2: the lid seat legitimately tracks the wall, but the exterior
+    // registration features must not (INV-2) — binRibSocketDims pins them.
+    variants: [{}, { widthModules: 4, lengthModules: 2 }, { overallHeight: 70 }, { lidLabel: "AB" }, { wallThick: 2 }],
     checks: [
       ["shape count (body+lid)", shapeCount(2)],
+      ["rib/socket dims track RIB_WIDTH, not WALL_THICK", binRibSocketDims()],
       ["lid does not interpenetrate body (seat cut)", (s) => {
         let ov = 0;
         try { ov = measureVolume(s[0].clone().intersect(s[1].clone())); } catch { /* disjoint */ }
@@ -216,20 +379,22 @@ const SUITES = {
     ],
   },
   "bin-double-sided": {
-    variants: [{}, { overallHeight: 80 }, { overallHeight: 150 }, { widthModules: 3, lengthModules: 3 }, { widthModules: 5, lengthModules: 5 }],
+    // wallThick 2.5 runs before the heavy 5×5 build: as the last variant it hit
+    // OCCT heap exhaustion and slabVolume's throw-guard read as zero volumes.
+    variants: [{}, { overallHeight: 80 }, { overallHeight: 150 }, { wallThick: 2.5 }, { widthModules: 3, lengthModules: 3 }, { widthModules: 5, lengthModules: 5 }],
     checks: [
       ["shape count (body+2 lids)", shapeCount(3)],
       ["body is one connected solid", (s) => ({ ok: solidCount(s[0]) === 1, msg: `${solidCount(s[0])} solids` })],
       ["bbox = footprint formula", bboxMatches(binFootprintBBox)],
-      ["central floor tracks OVERALL_HT/2", (s, p) => {
-        const { z } = peakSlab(s[0], p.floorThick, p.overallHeight);
+      ["rib/socket dims track RIB_WIDTH, not WALL_THICK", binRibSocketDims()],
+      // One peakSlab scan serves both assertions (it is ~55 boolean ops — the
+      // most expensive probe in the suite).
+      ["central floor at OVERALL_HT/2, open at both ends", (s, p) => {
+        const { z, v: floor } = peakSlab(s[0], p.floorThick, p.overallHeight);
         const mid = p.overallHeight / 2;
-        return { ok: approx(z, mid, p.overallHeight * 0.12), msg: `floor peak z=${z.toFixed(1)}, h/2=${mid.toFixed(1)}` };
-      }],
-      ["open at both ends (floor >> ends)", (s, p) => {
-        const floor = peakSlab(s[0], p.floorThick, p.overallHeight).v;
         const bottom = slabVolume(s[0], "z", 5, 7);
-        return { ok: floor > 3 * bottom && bottom > 0, msg: `floor ${floor.toFixed(0)} vs bottom-end ${bottom.toFixed(0)}` };
+        const ok = approx(z, mid, p.overallHeight * 0.12) && floor > 3 * bottom && bottom > 0;
+        return { ok, msg: `floor peak ${floor.toFixed(0)} mm³ at z=${z.toFixed(1)} (h/2=${mid.toFixed(1)}); bottom-end ${bottom.toFixed(0)}` };
       }],
     ],
   },
@@ -255,6 +420,39 @@ const SUITES = {
       ["assembled bbox = OVERALL_* (pieces stay in place)", bboxMatches(overallBBox)],
       ["every piece fits the bed", fitsBed()],
       ["end-cap ribs survive subdivision", endCapRibsPresent()],
+      ["cavity opening = N·P modules exactly (INV-7, any t)", cavityModuleExact()],
+      ["grid ribs are RIB_WIDTH × GRID_BUMP (INV-2)", gridRibDimsTrackRibWidth()],
+      ["grooves are RIB_WIDTH wide, blind in any wall (INV-2/REQ-4.4)", grooveWidthTracksRibWidth()],
+      ["cavity is open (hollow frame)", (s, p) => {
+        const v = centerColumnVolume(s, 10, 10, p.overallHeight - 10);
+        return { ok: v < 5, msg: `centre-column volume ${v.toFixed(1)} mm³ (want ~0)` };
+      }],
+    ],
+  },
+  // The INV-2 wall-thickness sweep, in its own suite so it gets a fresh OCCT
+  // heap (appended to the perimeter suite it exhausts the WASM heap and the
+  // builds abort). Unsplit (split: 0) — cheaper, and the invariants don't
+  // depend on the dovetail split. wallThick 1 → 6 covers the reasonable
+  // liner-wall range: the cavity must stay exactly N·P modules and every
+  // registration dimension must keep its RIB_WIDTH/GRID_BUMP size. 1 and 2.5
+  // exercise the bossed grooves (t < 2·bump); 6 crosses the REQ-4.4 threshold
+  // (boss-less flat-wall grooves). ribWidth 1.8 proves the features track the
+  // RIB_WIDTH knob itself.
+  "perimeter-inv2": {
+    model: "perimeter",
+    variants: [
+      { split: 0, wallThick: 1 },
+      { split: 0, wallThick: 2.5 },
+      { split: 0, wallThick: 6 },
+      { split: 0, ribWidth: 1.8 },
+    ],
+    checks: [
+      ["single unsplit piece", pieceCountMatches()],
+      ["one clean solid", eachIsOneSolid()],
+      ["bbox = OVERALL_*", bboxMatches(overallBBox)],
+      ["cavity opening = N·P modules exactly (INV-7, any t)", cavityModuleExact()],
+      ["grid ribs are RIB_WIDTH × GRID_BUMP (INV-2)", gridRibDimsTrackRibWidth()],
+      ["grooves are RIB_WIDTH wide, blind in any wall (INV-2/REQ-4.4)", grooveWidthTracksRibWidth()],
       ["cavity is open (hollow frame)", (s, p) => {
         const v = centerColumnVolume(s, 10, 10, p.overallHeight - 10);
         return { ok: v < 5, msg: `centre-column volume ${v.toFixed(1)} mm³ (want ~0)` };
@@ -321,7 +519,7 @@ for (const id of ids) {
       : "defaults";
     let ctx;
     try {
-      ctx = build(id, overrides);
+      ctx = build(suite.model ?? id, overrides);
     } catch (err) {
       console.log(`  [${label}] BUILD FAILED: ${err.message}`);
       failures++;
@@ -345,6 +543,11 @@ for (const id of ids) {
       const tag = res.ok ? "OK  " : xfailReason ? "XFAIL" : "FAIL";
       if (!res.ok && !xfailReason) failures++;
       console.log(`      ${tag} ${name} — ${res.msg}`);
+      // Collect between checks, not just variants: slab probes make dozens of
+      // OCCT temporaries per check, and on the heaviest late variants the WASM
+      // heap otherwise exhausts mid-variant (booleans start throwing, which
+      // slabVolume's guard reads as zero volumes — a phantom FAIL).
+      globalThis.gc?.();
     }
     if (xfailReason && !variantFailed) {
       console.log(`      NOTE known-fail variant now PASSES — remove the xfail marker`);

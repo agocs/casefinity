@@ -9,12 +9,18 @@ import type { ParamDef, ParamValues } from "./types.ts";
  *
  * - Outer footprint: modules * GRID_SPACING - 2 * CLEAR, sharp corners
  * - Floor FLOOR_THICK, walls WALL_THICK, open top at OVERALL_HT
- * - Bins interlock side by side: exterior vertical ribs (WALL_THICK wide,
+ * - Bins interlock side by side: exterior vertical ribs (RIB_WIDTH wide,
  *   WALL_BUMP proud) at module centers on two adjacent faces (-X, +Y); the
- *   opposite walls carry matching sockets — a slot (WALL_THICK + 2*CLEAR
- *   wide, WALL_BUMP deep) cut through the wall at each module center,
- *   backed by an interior boss (slot + 2*WALL_THICK wide, WALL_BUMP thick)
- *   so the neighbouring bin's rib snaps in without opening the cavity
+ *   opposite walls carry matching sockets — a slot (RIB_WIDTH + 2*CLEAR
+ *   wide, WALL_BUMP deep) cut into the wall at each module center. On a thin
+ *   wall (WALL_THICK < 2*WALL_BUMP) the slot severs the wall, so it is backed
+ *   by an interior boss (slot + 2*RIB_WIDTH wide, WALL_BUMP thick) keeping
+ *   the cavity closed; a thick wall swallows the slot as a plain blind pocket
+ *   and needs no boss.
+ *
+ * Registration geometry (rib width, slot width, bump depth) derives from
+ * RIB_WIDTH / WALL_BUMP / CLEAR only — WALL_THICK is structural and can vary
+ * without changing how bins register (spec INV-2).
  * - One wall (+Y, a ribbed one) extends PULL_TAB_HT above the rim with a
  *   drafted pull slot and two 45-degree gussets (side-wall continuations)
  */
@@ -45,6 +51,7 @@ export const binParams: ParamDef[] = [
   { key: "gridSpacing", fusionName: "GRID_SPACING", label: "Grid spacing", default: 15, unit: "mm", min: 10, max: 50, step: 0.5 },
   { key: "overallHeight", fusionName: "OVERALL_HT", label: "Height", default: 110, unit: "mm", min: 20, max: 300, step: 1 },
   { key: "wallThick", fusionName: "WALL_THICK", label: "Wall thickness", default: 1.2, unit: "mm", min: 0.8, max: 3, step: 0.1 },
+  { key: "ribWidth", label: "Rib width", default: 1.2, unit: "mm", min: 0.6, max: 3, step: 0.1 },
   { key: "floorThick", fusionName: "FLOOR_THICK", label: "Floor thickness", default: 1, unit: "mm", min: 0.6, max: 4, step: 0.2 },
   { key: "clear", fusionName: "CLEAR", label: "Clearance", default: 0.1, unit: "mm", min: 0, max: 0.5, step: 0.05 },
   { key: "wallBump", fusionName: "WALL_BUMP", label: "Rib depth", default: 1.5, unit: "mm", min: 0.5, max: 3, step: 0.1 },
@@ -64,9 +71,13 @@ export function withDefaults(
 
 /**
  * The side-wall interlock: exterior ribs on the -X and +Y faces (WALL_BUMP
- * proud), matching sockets on the +X and -Y faces (a slot through the wall
- * backed by an interior boss). `bossZ0` is where the interior bosses start (the
- * floor level, so they don't obstruct the cavity floor). Shared by every bin.
+ * proud), matching sockets on the +X and -Y faces (a slot cut WALL_BUMP deep
+ * into the wall). A wall thinner than 2*WALL_BUMP is severed by the slot, so
+ * the slot is backed by an interior boss keeping the pocket blind; a thicker
+ * wall holds the slot with a full WALL_BUMP of material behind it and the
+ * boss is omitted (spec REQ-4.4). `bossZ0` is where the interior bosses start
+ * (the floor level, so they don't obstruct the cavity floor). Shared by every
+ * bin. All widths derive from RIB_WIDTH, never WALL_THICK (spec INV-2).
  */
 export function addInterlockRibs(
   bin: Shape3D,
@@ -77,24 +88,24 @@ export function addInterlockRibs(
   bossZ0: number,
 ): Shape3D {
   const t = p.wallThick;
+  const rw = p.ribWidth;
   const bump = p.wallBump;
-  const slotWidth = t + 2 * p.clear;
-  const bossWidth = slotWidth + 2 * t;
+  const slotWidth = rw + 2 * p.clear;
+  const bossWidth = slotWidth + 2 * rw;
+  const needBoss = t < 2 * bump;
   for (const c of moduleCenters(p.lengthModules, p.gridSpacing)) {
-    bin = bin.fuse(box(bump, t, 0, h, -w / 2 - bump / 2, c));
+    bin = bin.fuse(box(bump, rw, 0, h, -w / 2 - bump / 2, c));
   }
   for (const c of moduleCenters(p.widthModules, p.gridSpacing)) {
-    bin = bin.fuse(box(t, bump, 0, h, c, d / 2 + bump / 2));
+    bin = bin.fuse(box(rw, bump, 0, h, c, d / 2 + bump / 2));
   }
   for (const c of moduleCenters(p.lengthModules, p.gridSpacing)) {
-    bin = bin
-      .fuse(box(bump, bossWidth, bossZ0, h, w / 2 - t - bump / 2, c))
-      .cut(box(bump, slotWidth, 0, h, w / 2 - bump / 2, c));
+    if (needBoss) bin = bin.fuse(box(bump, bossWidth, bossZ0, h, w / 2 - t - bump / 2, c));
+    bin = bin.cut(box(bump, slotWidth, 0, h, w / 2 - bump / 2, c));
   }
   for (const c of moduleCenters(p.widthModules, p.gridSpacing)) {
-    bin = bin
-      .fuse(box(bossWidth, bump, bossZ0, h, c, -d / 2 + t + bump / 2))
-      .cut(box(slotWidth, bump, 0, h, c, -d / 2 + bump / 2));
+    if (needBoss) bin = bin.fuse(box(bossWidth, bump, bossZ0, h, c, -d / 2 + t + bump / 2));
+    bin = bin.cut(box(slotWidth, bump, 0, h, c, -d / 2 + bump / 2));
   }
   return bin;
 }

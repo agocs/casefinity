@@ -45,7 +45,11 @@
 </div>
 <main>
 <h1>Casefinity Liner Interior &amp; Accessory Specification</h1>
-<p><strong>Status:</strong> Proposed specification v0.1 · 2026-07-16
+<p><strong>Status:</strong> Proposed specification v0.2 · 2026-07-20
+<strong>Changed in v0.2:</strong> Registration geometry is decoupled from wall thickness: rib
+width is its own interface constant <code>w</code> (<code>RIB_WIDTH</code>), and <code>WALL_THICK</code> is now a
+free structural parameter (see INV-2, REQ-4.4). In v0.1 both were the single
+symbol <code>t</code>, so thickening a wall silently resized every rib, socket, and groove.
 <strong>Scope:</strong> The geometric interface between Casefinity hard-case <em>liners</em> (perimeter
 frames), <em>bins</em>, and <em>accessories</em> (lids, dividers, solid stock). This document
 specifies the module grid, the interlock/registration features, the fit and
@@ -114,11 +118,11 @@ use these values (or a documented superset).</p>
 <td><code>GRID_SPACING</code></td>
 </tr>
 <tr>
-<td><code>t</code></td>
-<td align="right">Wall thickness</td>
+<td><code>w</code></td>
+<td align="right">Rib width</td>
 <td align="right"><strong>1.20 mm</strong></td>
 <td align="right">1.20 mm</td>
-<td><code>WALL_THICK</code></td>
+<td><code>RIB_WIDTH</code></td>
 </tr>
 <tr>
 <td><code>b</code></td>
@@ -135,6 +139,13 @@ use these values (or a documented superset).</p>
 <td><code>CLEAR</code> = <code>LID_CLEAR</code></td>
 </tr>
 <tr>
+<td><code>t</code></td>
+<td align="right">Wall thickness <em>(structural, free)</em></td>
+<td align="right">default 1.20 mm</td>
+<td align="right">default 1.20 mm</td>
+<td><code>WALL_THICK</code></td>
+</tr>
+<tr>
 <td><code>f</code></td>
 <td align="right">Floor / foot thickness</td>
 <td align="right"><strong>1.00 mm</strong></td>
@@ -149,14 +160,34 @@ use these values (or a documented superset).</p>
 <td><code>OVERALL_HT</code> / <code>OVERALL_HEIGHT</code></td>
 </tr>
 </tbody></table></div>
+<p>The <strong>interface constants</strong> are <code>P</code>, <code>w</code>, <code>b</code>, <code>c</code> (bold values). <code>t</code>, <code>f</code>, and
+<code>H</code> are <em>structural</em> parameters: a conforming part may choose them freely (walls
+of <code>1–6 mm</code> are the reasonable range) without affecting interoperability.</p>
 <p><strong>INV-1 (unified bump).</strong> <code>WALL_BUMP</code> (bins) and <code>GRID_BUMP</code> (liner) are the same
 value <code>b = 1.50 mm</code>, and every <strong>rib</strong> (male feature), on a bin or on a liner, is
-<code>t = 1.20 mm</code> wide and stands <code>b</code> proud. The female features are near-identical: a
-bin <em>socket</em> and a liner <em>groove</em> are both a slot through the thin wall <strong>backed by
-an interior boss</strong> — a blind pocket that keeps the cavity closed — differing only
-in the slot&#39;s tangential clearance (see §4). All share <code>b</code> and <code>t</code>. A bin registers
-against a neighbouring bin and against the liner with compatible geometry. Any
-change to <code>b</code> or <code>t</code> MUST be applied to both families together.</p>
+<code>w = 1.20 mm</code> wide and stands <code>b</code> proud. The female features are near-identical: a
+bin <em>socket</em> and a liner <em>groove</em> are both a <code>b</code>-deep slot in the wall, kept a
+<strong>blind pocket</strong> (backed by an interior boss when the wall is thin — see REQ-4.4),
+differing only in the slot&#39;s tangential clearance (see §4). All share <code>b</code> and <code>w</code>.
+A bin registers against a neighbouring bin and against the liner with compatible
+geometry. Any change to <code>b</code> or <code>w</code> MUST be applied to both families together.</p>
+<p><strong>INV-2 (wall thickness is orthogonal to registration).</strong> <code>WALL_THICK</code> is <em>not</em>
+an interface dimension. Changing <code>t</code> MUST NOT change any registration geometry —
+rib width <code>w</code>, bump height <code>b</code>, slot widths, module pitch <code>P</code>, feature centring,
+or the liner&#39;s cavity size (INV-7). This is realized by construction:</p>
+<ul>
+<li>every rib, slot, and boss width derives from <code>w</code> (and <code>c</code>), never from <code>t</code>;</li>
+<li>a bin&#39;s walls thicken <strong>inward</strong> (its interior shrinks; its footprint <code>F(n)</code>
+and exterior features are unchanged);</li>
+<li>the liner&#39;s cavity wall thickens <strong>outward</strong> into the border (the cavity stays
+exactly <code>N·P</code>; the border hollow shrinks). <code>t</code> appears in the liner only as
+the rib&#39;s structural embed depth and the boss depth — both behind the wall
+face, never in a mating dimension.</li>
+</ul>
+<p>Historical note: the original Fusion designs drove rib width off <code>WALL_THICK</code>
+(they were numerically equal at <code>1.20 mm</code>). <code>RIB_WIDTH</code> is a generator-introduced
+parameter that freezes that width as an interface constant; at the defaults the
+geometry is bit-identical to the originals.</p>
 <hr>
 <h2>3. The module grid</h2>
 <p><strong>REQ-3.1.</strong> The grid is a square lattice of pitch <code>P</code>. Feature and cavity
@@ -195,16 +226,17 @@ when a bin sits on-grid.</p>
 <tbody><tr>
 <td><code>−X</code>, <code>+Y</code></td>
 <td><strong>Rib (male)</strong></td>
-<td><code>t = 1.20</code> wide, stands <code>b = 1.50</code> proud of the wall face, full height. One per module centre.</td>
+<td><code>w = 1.20</code> wide, stands <code>b = 1.50</code> proud of the wall face, full height. One per module centre.</td>
 </tr>
 <tr>
 <td><code>+X</code>, <code>−Y</code></td>
 <td><strong>Socket (female)</strong></td>
-<td>Slot cut through the wall, <code>s = t + 2c = 1.40</code> wide, <code>b = 1.50</code> deep, backed by an interior <strong>boss</strong> <code>s + 2t = 3.80</code> wide, <code>b</code> thick, so the cavity is not opened. One per module centre.</td>
+<td>Slot cut <code>b = 1.50</code> deep into the wall, <code>s = w + 2c = 1.40</code> wide. On a thin wall (<code>t &lt; 2b</code>) the slot severs the wall and MUST be backed by an interior <strong>boss</strong> <code>s + 2w = 3.80</code> wide, <code>b</code> thick, so the cavity is not opened; on a thick wall (<code>t ≥ 2b</code>) the slot is a plain blind pocket and the boss is omitted (REQ-4.4). One per module centre.</td>
 </tr>
 </tbody></table></div>
-<p><strong>REQ-4.1.</strong> Socket slot width MUST equal <code>t + 2c</code> so a mating <code>t</code>-wide rib enters
-with exactly <code>c = 0.10 mm</code> clearance <strong>per flank</strong>.</p>
+<p><strong>REQ-4.1.</strong> Socket slot width MUST equal <code>w + 2c</code> so a mating <code>w</code>-wide rib enters
+with exactly <code>c = 0.10 mm</code> clearance <strong>per flank</strong>. Neither dimension involves
+<code>t</code> (INV-2).</p>
 <h3>4.2 Liner interior wall (the grid bumps)</h3>
 <p>The liner presents the <em>same</em> bump geometry on its cavity walls, split so it mates
 with a bin&#39;s exterior in any of the two registrations:</p>
@@ -219,21 +251,22 @@ with a bin&#39;s exterior in any of the two registrations:</p>
 <tbody><tr>
 <td><code>−Y</code>, <code>+X</code></td>
 <td><strong>Rib</strong></td>
-<td><code>t = 1.20</code> wide, <code>b = 1.50</code> proud into the cavity (plus <code>t</code> embedded back into the wall). One per module.</td>
+<td><code>w = 1.20</code> wide, <code>b = 1.50</code> proud into the cavity (plus <code>t</code> embedded back into the wall — a structural anchor, not a mating dimension). One per module.</td>
 </tr>
 <tr>
 <td><code>+Y</code>, <code>−X</code></td>
 <td><strong>Groove</strong></td>
-<td>A slot <code>t = 1.20</code> wide (line-to-line with a rib), <code>b = 1.50</code> deep (from <code>0.30 mm</code> proud of the face), <strong>backed by a boss <code>3t = 3.60</code> wide extending <code>t + b = 2.70</code> past the face</strong> into the U-channel — a blind pocket, so the cavity is not opened. One per module.</td>
+<td>A slot <code>w = 1.20</code> wide (line-to-line with a rib), <code>b = 1.50</code> deep (from <code>0.30 mm</code> proud of the face). On a thin wall (<code>t &lt; 2b</code>), <strong>backed by a boss <code>3w = 3.60</code> wide extending <code>t + b</code> past the face</strong> into the U-channel — a blind pocket, so the cavity is not opened; on a thick wall (<code>t ≥ 2b</code>) the slot is cut straight into the flat wall (REQ-4.4). One per module.</td>
 </tr>
 </tbody></table></div>
-<p><strong>REQ-4.2.</strong> The liner groove is <code>t</code> wide — the <strong>same</strong> width as a rib, with <strong>no</strong>
-added tangential clearance (line-to-line). Like the bin socket, the slot MUST be
-<strong>backed by a boss</strong> so it is a blind pocket that does not open the cavity into the
-U-channel hollow: the <code>b</code>-deep slot alone cuts clean through the <code>t</code>-thick inner
-wall and severs it. The <code>0.30 mm</code> mouth chamfer is a first-layer / elephant-foot
-allowance at the wall face, not registration clearance. Tangentially the groove is
-a relief, not a precision locator (see REQ-4.3).</p>
+<p><strong>REQ-4.2.</strong> The liner groove is <code>w</code> wide — the <strong>same</strong> width as a rib, with <strong>no</strong>
+added tangential clearance (line-to-line). Like the bin socket, the groove MUST be
+a blind pocket that does not open the cavity into the U-channel hollow: on a thin
+wall the <code>b</code>-deep slot alone cuts clean through the inner wall and severs it, so it
+MUST be backed by a boss (REQ-4.4 gives the exact rule). The <code>0.30 mm</code> mouth
+chamfer is a first-layer / elephant-foot allowance at the wall face, not
+registration clearance. Tangentially the groove is a relief, not a precision
+locator (see REQ-4.3).</p>
 <h3>4.3 Fit summary — two distinct interfaces</h3>
 <p>The joint is <strong>asymmetric</strong>: only the socket pairs are clearanced locators; the
 groove pairs are line-to-line reliefs.</p>
@@ -248,29 +281,46 @@ groove pairs are line-to-line reliefs.</p>
 </thead>
 <tbody><tr>
 <td><strong>Locating</strong> — bin↔bin, and liner-rib↔bin-socket</td>
-<td>rib <code>t = 1.20</code></td>
-<td>socket <code>t + 2c = 1.40</code></td>
+<td>rib <code>w = 1.20</code></td>
+<td>socket <code>w + 2c = 1.40</code></td>
 <td><strong>0.10 mm / flank</strong> (0.20 across)</td>
 </tr>
 <tr>
 <td><strong>Relief</strong> — bin-rib↔liner-groove</td>
-<td>rib <code>t = 1.20</code></td>
-<td>groove <code>t = 1.20</code></td>
+<td>rib <code>w = 1.20</code></td>
+<td>groove <code>w = 1.20</code></td>
 <td><strong>line-to-line</strong> (0 nominal)</td>
 </tr>
 </tbody></table></div>
-<pre><code>   LOCATING:  rib t=1.20 ─►│ │◄─ socket s=1.40   →  0.10 mm/flank  (the clean hand-fit)
+<pre><code>   LOCATING:  rib w=1.20 ─►│ │◄─ socket s=1.40   →  0.10 mm/flank  (the clean hand-fit)
                            └─┘
-   RELIEF:    rib t=1.20 ─►│ │◄─ groove t=1.20    →  0 nominal; seats on process tolerance
-                           └─┘   (a blind slot+boss pocket; line-to-line width, not a locator)
+   RELIEF:    rib w=1.20 ─►│ │◄─ groove w=1.20    →  0 nominal; seats on process tolerance
+                           └─┘   (a blind pocket; line-to-line width, not a locator)
 </code></pre>
 <p><strong>REQ-4.3.</strong> A part locates on its <strong>socket</strong> interfaces (the clearanced 0.10 mm/flank
 fit — this is what assembles cleanly by hand). The opposing <strong>rib-in-groove</strong> pair is
-a blind slot+boss pocket (structurally like the socket, so it closes the cavity) but
-with a <strong>line-to-line</strong> slot width, so <em>tangentially</em> it is a relief, not a clearanced
-locator: its practical fit is set by process tolerance and the <code>CLEAR</code> knob (§8.4).
-Designers MUST NOT treat the groove as a tight datum, and MUST NOT over-constrain a
-part by relying on both interfaces for precision simultaneously.</p>
+a blind pocket (closing the cavity like the socket does) but with a <strong>line-to-line</strong>
+slot width, so <em>tangentially</em> it is a relief, not a clearanced locator: its practical
+fit is set by process tolerance and the <code>CLEAR</code> knob (§8.4). Designers MUST NOT treat
+the groove as a tight datum, and MUST NOT over-constrain a part by relying on both
+interfaces for precision simultaneously.</p>
+<h3>4.4 Female features on thick walls</h3>
+<p><strong>REQ-4.4 (boss rule).</strong> Every female feature (bin socket, liner groove) MUST be a
+<strong>blind pocket</strong>: the <code>b</code>-deep slot must never open the part&#39;s cavity (or the
+liner&#39;s U-channel hollow). How that is achieved depends only on the wall:</p>
+<ul>
+<li><strong><code>t &lt; 2b</code> (thin wall):</strong> the slot severs the wall, or leaves less than <code>b</code> of
+material behind it, so it MUST be backed by an interior boss (§4.1/§4.2 give
+each family&#39;s boss dimensions — all derived from <code>w</code> and <code>b</code>, except the liner
+boss <em>depth</em> <code>t + b</code>, which must span whatever wall it backs).</li>
+<li><strong><code>t ≥ 2b</code> (thick wall):</strong> the wall itself swallows the slot with at least <code>b</code>
+of solid material behind it. The boss MUST be omitted and the slot cut directly
+into the flat wall.</li>
+</ul>
+<p>The male rib and the slot&#39;s mouth geometry are identical in both regimes, so a
+mating part cannot tell them apart — the boss is an internal construction detail,
+never part of the interface. At the default <code>t = 1.20 mm</code> every part is in the
+thin-wall regime; a <code>6 mm</code> liner wall (<code>t = 4b</code>) is in the thick-wall regime.</p>
 <hr>
 <h2>5. Bin ↔ bin engagement</h2>
 <p><strong>REQ-5.1.</strong> Adjacent bins meet wall-face-to-wall-face: one bin&#39;s <code>−X</code>/<code>−Y</code> rib
@@ -299,8 +349,11 @@ checking <code>case_internal_height ≥ H + PULL_TAB_HT</code>.</p>
 <hr>
 <h2>7. Liner interior sizing — the integer-module invariant</h2>
 <p><strong>INV-7 (interiors snap to whole modules).</strong> A liner&#39;s cavity MUST be an integer
-number of modules on each axis. This is <em>guaranteed by construction</em> by the border
-formula, not left to the user:</p>
+number of modules on each axis, <strong>independent of wall thickness</strong>. This is
+<em>guaranteed by construction</em> by the border formula, not left to the user — note
+that <code>t</code> appears nowhere in it (the cavity wall thickens outward into the border,
+INV-2), so a liner rebuilt with any <code>t</code> in the <code>1–6 mm</code> range presents the exact
+same <code>N_L × N_W</code> module cavity:</p>
 <pre><code>N_L = floor(OVERALL_LENGTH / P) − SIDE_BOARDER_BIN_ADD      (cavity length, modules)
 N_W = floor(OVERALL_WIDTH  / P) − FRONT_BOARDER_BIN_ADD     (cavity width,  modules)
 
@@ -368,9 +421,11 @@ standard Gridfinity baseplate/bin set (<code>42 mm</code> module) drops into the
 standard Gridfinity <code>~0.5 mm/module</code> baseplate clearance lives <em>inside</em> that
 pocket and is not part of this spec.</p>
 <p><strong>REQ-7.2 (minimum border).</strong> <code>border_per_side</code> MUST remain <code>≥ t + b + m_struct</code>
-(wall + bump + a structural margin <code>m_struct ≈ 3 mm</code>), i.e. <code>≳ 6 mm</code>, or the
-border cannot carry the U-channel wall and grid bump. Increasing <code>BIN_ADD</code> trades
-cavity modules for border; it MUST NOT drive the border below this floor.</p>
+(wall + bump + a structural margin <code>m_struct ≈ 3 mm</code>) — <code>≳ 6 mm</code> at the default
+<code>t = 1.20</code>, rising to <code>≳ 10.5 mm</code> at <code>t = 6</code> — or the border cannot carry the
+U-channel wall and grid bump. Increasing <code>BIN_ADD</code> trades cavity modules for
+border, and thickening the wall consumes border hollow; neither MUST drive the
+border below this floor.</p>
 <p><strong>SHOULD-7.3 (UX).</strong> Because the cavity is always <code>N_L × N_W</code> whole modules, the
 generator SHOULD display the resulting module count (e.g. &quot;19 × 13 modules&quot;) and
 MAY offer an inverse mode where the user enters <code>N_L, N_W</code> and the outer size is
@@ -486,8 +541,9 @@ calibrate XY scale (flow / steps-per-mm / measured calibration cube) to keep
 absolute error <code>&lt; 2c = 0.20 mm</code> over the span (≈ 0.07 % at the full default cavity).</li>
 <li><strong>MAY-8.3.</strong> On an uncalibrated or high-shrink process, raise <code>CLEAR</code> (bins) from
 <code>0.10</code> toward <code>0.15–0.20 mm</code> to widen every flank gap, accepting more play. This
-is the intended tuning knob; <code>WALL_THICK</code>, <code>WALL_BUMP</code>, and <code>P</code> MUST stay fixed
-(they are interface constants — INV-1).</li>
+is the intended tuning knob; <code>RIB_WIDTH</code>, <code>WALL_BUMP</code>, and <code>P</code> MUST stay fixed
+(they are interface constants — INV-1). <code>WALL_THICK</code> is free (INV-2) — thicken
+walls for strength at will; it changes no fit anywhere in this section.</li>
 <li><strong>MAY-8.4.</strong> Prefer <strong>more, narrower bins</strong> over one wide bin when print accuracy
 is marginal: each extra bin adds <code>2c = 0.20 mm</code> of total slack and shortens the
 drift lever <code>n·P/2</code>.</li>
@@ -506,12 +562,14 @@ interface constant.</li>
 <h3>9.1 Lids</h3>
 <p>Lids seat on a bin&#39;s rim with their own clearance <code>LID_CLEAR = 0.10 mm</code> and a
 sliding-lock scheme (<code>LID_LOCK_*</code>, <code>LID_PULL_*</code>). A lid&#39;s footprint tracks the bin
-footprint <code>F(n)</code>; a lid MUST use the same <code>P</code>, <code>t</code>, <code>c</code> so it shares the bin&#39;s
+footprint <code>F(n)</code>; a lid MUST use the same <code>P</code>, <code>w</code>, <code>c</code> so it shares the bin&#39;s
 tolerance behaviour (§8). Lids stand above the rim (REQ-6.3).</p>
 <h3>9.2 Dividers</h3>
 <p>Liner dividers are full-height cross-ribs on the long walls at evenly spaced grid
 centres (<code>BOARDER_DIVIDERS</code>). They subdivide the cavity <strong>on module boundaries</strong>;
-a divider MUST fall on a grid line so it does not steal a bin&#39;s module.</p>
+a divider MUST fall on a grid line so it does not steal a bin&#39;s module, and MUST
+be <code>w</code> wide (like every module-boundary feature, its width does not follow <code>t</code> —
+a thick-walled liner with <code>t</code>-wide dividers would eat into the adjacent modules).</p>
 <h3>9.3 Solid Block (module stock)</h3>
 <p>The Solid Block is a bin footprint with no cavity (keeps <code>F(n)</code>, ribs, sockets,
 pull tab). It is module-conforming stock: it registers exactly like a bin, so a
@@ -521,9 +579,10 @@ accessories SHOULD start from <code>F(n)</code> + the §4.1 feature set to inher
 <p>A part is <em>Casefinity-conformant</em> iff:</p>
 <ol>
 <li>Its module envelope is <code>n·P</code> with footprint <code>F(n) = n·P − 2c</code> (REQ-3.2).</li>
-<li>It carries the §4.1 handed rib/socket set at module centres, <code>t</code> wide, <code>b</code>
-proud/deep, sockets <code>t + 2c</code> wide (REQ-4.1).</li>
-<li>It uses the datum constants of §2 unchanged except <code>CLEAR</code> (the only tuning knob).</li>
+<li>It carries the §4.1 handed rib/socket set at module centres, <code>w</code> wide, <code>b</code>
+proud/deep, sockets <code>w + 2c</code> wide (REQ-4.1), blind per REQ-4.4.</li>
+<li>It uses the interface constants of §2 unchanged except <code>CLEAR</code> (the only tuning
+knob); structural parameters (<code>WALL_THICK</code>, <code>FLOOR_THICK</code>, height) are free.</li>
 <li>If it defines an interior pocket, that pocket snaps to whole modules (INV-7).</li>
 </ol>
 <hr>
@@ -542,8 +601,13 @@ proud/deep, sockets <code>t + 2c</code> wide (REQ-4.1).</li>
 <td><code>GRID_SPACING</code></td>
 </tr>
 <tr>
+<td><code>w</code></td>
+<td><code>ribWidth</code></td>
+<td>— (generator-introduced; historically driven by <code>WALL_THICK</code>)</td>
+</tr>
+<tr>
 <td><code>t</code></td>
-<td><code>wallThick</code></td>
+<td><code>wallThick</code> (structural only)</td>
 <td><code>WALL_THICK</code></td>
 </tr>
 <tr>
@@ -568,7 +632,7 @@ proud/deep, sockets <code>t + 2c</code> wide (REQ-4.1).</li>
 </tr>
 <tr>
 <td>socket <code>s</code></td>
-<td><code>t + 2*clear</code> (<code>addInterlockRibs</code>)</td>
+<td><code>ribWidth + 2*clear</code> (<code>addInterlockRibs</code>)</td>
 <td>derived</td>
 </tr>
 <tr>
@@ -579,8 +643,9 @@ proud/deep, sockets <code>t + 2c</code> wide (REQ-4.1).</li>
 </tbody></table></div>
 <p>Provenance of every default: <code>f3d-extracted-parameters.md</code>. Geometry realization:
 <code>hardcase-gridfinity-generator/src/models/bin-common.ts</code> (bins) and
-<code>.../perimeter.ts</code> (liner). Invariants INV-1, INV-7 and the fit REQ-4.1 are
-exercised by <code>npm run scaling</code>.</p>
+<code>.../perimeter.ts</code> (liner). Invariants INV-1, INV-2, INV-7, the fit REQ-4.1 and
+the boss rule REQ-4.4 are exercised by <code>npm run scaling</code> (including a
+<code>WALL_THICK</code> sweep over <code>1–6 mm</code> on the liner).</p>
 
 </main>
 </body>
