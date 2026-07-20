@@ -1,6 +1,9 @@
 import { draw, drawRectangle } from "replicad";
 import type { Shape3D, Sketch } from "replicad";
 import type { ParamDef, ParamValues } from "./types.ts";
+import { interlockDims, moduleCenters, ribWidthParam } from "./registration.ts";
+
+export { moduleCenters };
 
 /**
  * Shared geometry for the Hardcase Gridfinity bins, reverse-engineered from
@@ -39,11 +42,6 @@ export function box(
     .extrude(z1 - z0) as Shape3D;
 }
 
-/** x/y offsets of module centers, e.g. 3 modules @ 15 -> [-15, 0, 15] */
-export function moduleCenters(count: number, spacing: number): number[] {
-  return Array.from({ length: count }, (_, i) => (i - (count - 1) / 2) * spacing);
-}
-
 /** Parameters shared by every bin variant. */
 export const binParams: ParamDef[] = [
   { key: "widthModules", fusionName: "WIDTH_MODULE_NUMBER", label: "Width (modules)", default: 3, unit: "", min: 1, max: 20, step: 1 },
@@ -51,7 +49,7 @@ export const binParams: ParamDef[] = [
   { key: "gridSpacing", fusionName: "GRID_SPACING", label: "Grid spacing", default: 15, unit: "mm", min: 10, max: 50, step: 0.5 },
   { key: "overallHeight", fusionName: "OVERALL_HT", label: "Height", default: 110, unit: "mm", min: 20, max: 300, step: 1 },
   { key: "wallThick", fusionName: "WALL_THICK", label: "Wall thickness", default: 1.2, unit: "mm", min: 0.8, max: 3, step: 0.1 },
-  { key: "ribWidth", label: "Rib width", default: 1.2, unit: "mm", min: 0.6, max: 3, step: 0.1 },
+  ribWidthParam,
   { key: "floorThick", fusionName: "FLOOR_THICK", label: "Floor thickness", default: 1, unit: "mm", min: 0.6, max: 4, step: 0.2 },
   { key: "clear", fusionName: "CLEAR", label: "Clearance", default: 0.1, unit: "mm", min: 0, max: 0.5, step: 0.05 },
   { key: "wallBump", fusionName: "WALL_BUMP", label: "Rib depth", default: 1.5, unit: "mm", min: 0.5, max: 3, step: 0.1 },
@@ -77,7 +75,8 @@ export function withDefaults(
  * wall holds the slot with a full WALL_BUMP of material behind it and the
  * boss is omitted (spec REQ-4.4). `bossZ0` is where the interior bosses start
  * (the floor level, so they don't obstruct the cavity floor). Shared by every
- * bin. All widths derive from RIB_WIDTH, never WALL_THICK (spec INV-2).
+ * bin. All widths come from the shared registration interface (registration.ts)
+ * and derive from RIB_WIDTH, never WALL_THICK (spec INV-2).
  */
 export function addInterlockRibs(
   bin: Shape3D,
@@ -88,11 +87,8 @@ export function addInterlockRibs(
   bossZ0: number,
 ): Shape3D {
   const t = p.wallThick;
-  const rw = p.ribWidth;
   const bump = p.wallBump;
-  const slotWidth = rw + 2 * p.clear;
-  const bossWidth = slotWidth + 2 * rw;
-  const needBoss = t < 2 * bump;
+  const { ribWidth: rw, socketWidth: slotWidth, binBossWidth: bossWidth, needBoss } = interlockDims(p, bump);
   for (const c of moduleCenters(p.lengthModules, p.gridSpacing)) {
     bin = bin.fuse(box(bump, rw, 0, h, -w / 2 - bump / 2, c));
   }

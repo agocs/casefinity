@@ -1,6 +1,7 @@
 import { drawRoundedRectangle, drawRectangle, draw } from "replicad";
 import type { Shape3D, Sketch, Drawing } from "replicad";
 import type { ModelDef, ParamDef, ParamValues } from "./types.ts";
+import { gridCenters, interlockDims, ribWidthParam } from "./registration.ts";
 
 /**
  * Port of Hardcase_Gridfinity_Perimeter.f3d — the liner frame that drops into
@@ -94,12 +95,6 @@ function cavityAt(z: number, outset: number, p: ParamValues): Sketch {
   return drawRoundedRectangle(length + 2 * outset, width + 2 * outset, radius).sketchOnPlane("XY", z) as Sketch;
 }
 
-/** Centres of the grid cells along a cavity edge of the given clear span. */
-function gridCenters(span: number, spacing: number): number[] {
-  const n = Math.round(span / spacing);
-  return Array.from({ length: n }, (_, i) => (i - (n - 1) / 2) * spacing);
-}
-
 /**
  * Grid-bump features on the inner (cavity) wall, one per grid-cell centre,
  * full height. Like the bins, adjacent walls differ: the -Y and +X walls carry
@@ -129,11 +124,13 @@ function applyGridFeatures(shape: Shape3D, p: ParamValues, walls: WallSpec[] = A
   const { length, width } = cavityDims(p);
   const half = { X: length / 2, Y: width / 2 };
   const t = p.wallThick;
-  const rw = p.ribWidth;
   const b = p.gridBump;
-  // Ribs span GRID_BUMP proud of the cavity face plus WALL_THICK back into the
-  // wall (the embed is structural anchoring; the proud, mating part is always
-  // exactly GRID_BUMP); grooves cut from 0.3 mm inside the face to GRID_BUMP deep.
+  // Registration widths come from the shared interface (registration.ts);
+  // depths are structural: ribs span GRID_BUMP proud of the cavity face plus
+  // WALL_THICK back into the wall (the embed is anchoring; the proud, mating
+  // part is always exactly GRID_BUMP), grooves cut from 0.3 mm inside the face
+  // to GRID_BUMP deep.
+  const { ribWidth: rw, grooveWidth, linerBossWidth: bossWide, needBoss } = interlockDims(p, b);
   const ribDepth = b + t;
   const grooveDepth = b + 0.3;
   const ribOff = (t - b) / 2; // face -> rib-box centre (proud into cavity)
@@ -144,14 +141,12 @@ function applyGridFeatures(shape: Shape3D, p: ParamValues, walls: WallSpec[] = A
   const solid = (rects: Draw[]) =>
     rects.reduce((a, r) => (a ? a.fuse(r) : r)).sketchOnPlane("XY", 0).extrude(p.overallHeight) as Shape3D;
 
-  // On a thin wall (t < 2b) the `b`-deep slot cuts clean through and would read
-  // as an open slit into the U-channel hollow. Back it with a wider boss (like
-  // the bin socket's interior boss) so the female pocket is blind and the cavity
-  // stays closed — the bin rib seats against it. A wall at least 2b thick holds
-  // the slot with ≥ b of material behind it, so the groove is cut straight into
-  // the flat wall and the boss is omitted (spec REQ-4.4).
-  const needBoss = t < 2 * b;
-  const bossWide = 3 * rw;
+  // On a thin wall (needBoss: t < 2b, spec REQ-4.4) the `b`-deep slot cuts
+  // clean through and would read as an open slit into the U-channel hollow.
+  // Back it with a wider boss (like the bin socket's interior boss) so the
+  // female pocket is blind and the cavity stays closed — the bin rib seats
+  // against it. A wall at least 2b thick holds the slot with ≥ b of material
+  // behind it, so the groove is cut straight into the flat wall, boss omitted.
   const bossDepth = t + b; // spans the wall plus GRID_BUMP into the hollow
 
   let out = shape;
@@ -177,7 +172,7 @@ function applyGridFeatures(shape: Shape3D, p: ParamValues, walls: WallSpec[] = A
       out = out.fuse(feat(half[w.axis] + ribOff, rw, ribDepth));
     } else {
       if (needBoss) out = out.fuse(feat(half[w.axis] + bossDepth / 2, bossWide, bossDepth)); // backing boss
-      out = out.cut(feat(half[w.axis] + grooveOff, rw, grooveDepth)); // the slot
+      out = out.cut(feat(half[w.axis] + grooveOff, grooveWidth, grooveDepth)); // the slot
     }
   }
   return out;
@@ -390,7 +385,7 @@ export const perimeterParams: ParamDef[] = [
     { key: "sideWallTaper", fusionName: "SIDE_WALL_TAPER", label: "Side wall taper", default: 2, unit: "deg", min: 0, max: 15, step: 0.5 },
     { key: "frontWallTaper", fusionName: "FRONT_WALL_TAPER", label: "Front wall taper", default: 2, unit: "deg", min: 0, max: 15, step: 0.5 },
     { key: "wallThick", fusionName: "WALL_THICK", label: "Wall thickness", default: 1.2, unit: "mm", min: 0.4, max: 6, step: 0.1 },
-    { key: "ribWidth", label: "Rib width", default: 1.2, unit: "mm", min: 0.6, max: 3, step: 0.1 },
+    ribWidthParam,
     { key: "clearance", fusionName: "CLEARANCE", label: "Case clearance", default: 0, unit: "mm", min: 0, max: 1, step: 0.05 },
     { key: "gridSpacing", fusionName: "GRID_SPACING", label: "Grid spacing", default: 15, unit: "mm", min: 10, max: 50, step: 0.5 },
     { key: "gridBump", fusionName: "GRID_BUMP", label: "Grid bump", default: 1.5, unit: "mm", min: 0, max: 3, step: 0.1 },

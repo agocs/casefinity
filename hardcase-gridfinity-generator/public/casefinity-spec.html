@@ -602,7 +602,7 @@ knob); structural parameters (<code>WALL_THICK</code>, <code>FLOOR_THICK</code>,
 </tr>
 <tr>
 <td><code>w</code></td>
-<td><code>ribWidth</code></td>
+<td><code>ribWidth</code> (<code>registration.ts</code>)</td>
 <td>— (generator-introduced; historically driven by <code>WALL_THICK</code>)</td>
 </tr>
 <tr>
@@ -643,7 +643,9 @@ knob); structural parameters (<code>WALL_THICK</code>, <code>FLOOR_THICK</code>,
 </tbody></table></div>
 <p>Provenance of every default: <code>f3d-extracted-parameters.md</code>. Geometry realization:
 <code>hardcase-gridfinity-generator/src/models/bin-common.ts</code> (bins) and
-<code>.../perimeter.ts</code> (liner). Invariants INV-1, INV-2, INV-7, the fit REQ-4.1 and
+<code>.../perimeter.ts</code> (liner); the shared registration interface — rib/slot/boss
+widths, module centring, the REQ-4.4 boss rule — lives in one place,
+<code>.../registration.ts</code>. Invariants INV-1, INV-2, INV-7, the fit REQ-4.1 and
 the boss rule REQ-4.4 are exercised by <code>npm run scaling</code> (including a
 <code>WALL_THICK</code> sweep over <code>1–6 mm</code> on the liner).</p>
 

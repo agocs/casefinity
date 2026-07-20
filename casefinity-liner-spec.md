@@ -432,7 +432,7 @@ A part is *Casefinity-conformant* iff:
 | Symbol | Generator param (`bin-common.ts` / `perimeter.ts`) | Fusion name |
 |---|---|---|
 | `P` | `gridSpacing` | `GRID_SPACING` |
-| `w` | `ribWidth` | — (generator-introduced; historically driven by `WALL_THICK`) |
+| `w` | `ribWidth` (`registration.ts`) | — (generator-introduced; historically driven by `WALL_THICK`) |
 | `t` | `wallThick` (structural only) | `WALL_THICK` |
 | `b` | `wallBump` / `gridBump` | `WALL_BUMP` / `GRID_BUMP` |
 | `c` | `clear` | `CLEAR` / `LID_CLEAR` |
@@ -443,6 +443,8 @@ A part is *Casefinity-conformant* iff:
 
 Provenance of every default: `f3d-extracted-parameters.md`. Geometry realization:
 `hardcase-gridfinity-generator/src/models/bin-common.ts` (bins) and
-`.../perimeter.ts` (liner). Invariants INV-1, INV-2, INV-7, the fit REQ-4.1 and
+`.../perimeter.ts` (liner); the shared registration interface — rib/slot/boss
+widths, module centring, the REQ-4.4 boss rule — lives in one place,
+`.../registration.ts`. Invariants INV-1, INV-2, INV-7, the fit REQ-4.1 and
 the boss rule REQ-4.4 are exercised by `npm run scaling` (including a
 `WALL_THICK` sweep over `1–6 mm` on the liner).
