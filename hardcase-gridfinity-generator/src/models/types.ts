@@ -47,6 +47,12 @@ export interface ParamGroup {
   keys: string[];
 }
 
+/** A named preset that fills in a set of parameter values. */
+export interface ParamPreset {
+  label: string;
+  values: Record<string, number | string | boolean>;
+}
+
 export interface ModelDef {
   id: string;
   name: string;
@@ -54,6 +60,8 @@ export interface ModelDef {
   params: ParamDef[];
   /** Optional collapsible groups. Params not in any group render first. */
   groups?: ParamGroup[];
+  /** Optional presets dropdown. Selecting one fills in the given values. */
+  presets?: ParamPreset[];
   build(p: ParamValues): Shape3D | Shape3D[];
 }
 

@@ -85,6 +85,10 @@ export const perimeterTemplate: ModelDef = {
     "Two 1mm cross-section slices of the hard case wall — one across the width, " +
     "one across the length — for test-fitting the wall profile against the case.",
   params: templateParams,
+  presets: [
+    { label: "Apache 3800", values: { overallLength: 377.825, overallWidth: 268.2875, overallHeight: 110 } },
+    { label: "Apache 4800", values: { overallLength: 454.025, overallWidth: 323.85, overallHeight: 125 } },
+  ],
   groups: [
     { title: "Basic dimensions", collapsed: false, keys: ["overallLength", "overallWidth", "overallHeight", "testOffset", "testThick"] },
     { title: "Advanced dimensions", collapsed: true, keys: ["bottomCornerRadius", "sideWallTaper", "frontWallTaper"] },

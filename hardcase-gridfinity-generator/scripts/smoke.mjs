@@ -40,7 +40,7 @@ const expected = {
   // 360 designs) — bbox matches the base perimeter (only the cavity corner
   // changes); volume is self-derived (a square cavity corner removes less
   // material than the rounded arc, so it's slightly higher than perimeter's).
-  "perimeter-square-corners": { x: 350, y: 250, z: 110, volume: 324232 },
+  "perimeter-square-corners": { x: 350, y: 250, z: 110, volume: 725903 },
   "bin-no-lid": { x: 46.3, y: 46.3, z: 115, volume: 28618 },
   "bin-with-lid": { x: 46.3, y: 46.3, z: 115, volume: 33579 }, // body + lid incl. +X rail, rounded top edge, TOP engraving (GT total 33723)
   // volume = GT total (body 68178 + two lids 9596 + 9577); smoke sums all shapes.

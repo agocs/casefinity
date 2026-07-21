@@ -471,6 +471,10 @@ export const perimeter: ModelDef = {
     "printer bed size to auto-subdivide so every piece fits), with grid bumps, " +
     "configurable dividers and print clearances.",
   params: perimeterParams,
+  presets: [
+    { label: "Apache 3800", values: { overallLength: 377.825, overallWidth: 268.2875, overallHeight: 110 } },
+    { label: "Apache 4800", values: { overallLength: 454.025, overallWidth: 323.85, overallHeight: 125 } },
+  ],
   groups: [
     { title: "Basic dimensions", collapsed: false, keys: ["overallLength", "overallWidth", "overallHeight", "wallThick", "footThick"] },
     { title: "Advanced dimensions", collapsed: true, keys: ["bottomCornerRadius", "wallCornerRadius", "sideWallTaper", "frontWallTaper", "clearance"] },

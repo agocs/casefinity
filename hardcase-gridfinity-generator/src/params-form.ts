@@ -79,6 +79,38 @@ export function renderParamsForm(
 
   const fire = () => onChange({ ...values });
 
+  // Presets dropdown (above sections)
+  if (model.presets && model.presets.length > 0) {
+    const presetLabel = document.createElement("label");
+    presetLabel.className = "field";
+    const caption = document.createElement("span");
+    caption.textContent = "Preset";
+    const select = document.createElement("select");
+    select.name = "preset";
+    // Default option
+    const noneOpt = document.createElement("option");
+    noneOpt.value = "";
+    noneOpt.textContent = "— Custom —";
+    select.appendChild(noneOpt);
+    for (const preset of model.presets) {
+      const opt = document.createElement("option");
+      opt.value = preset.label;
+      opt.textContent = preset.label;
+      select.appendChild(opt);
+    }
+    select.addEventListener("change", () => {
+      const preset = model.presets?.find((p) => p.label === select.value);
+      if (preset) {
+        for (const [key, val] of Object.entries(preset.values)) {
+          (vals as Record<string, unknown>)[key] = val;
+        }
+        fire();
+      }
+    });
+    presetLabel.append(caption, select);
+    form.appendChild(presetLabel);
+  }
+
   // Render groups in order
   if (model.groups) {
     for (const group of model.groups) {
