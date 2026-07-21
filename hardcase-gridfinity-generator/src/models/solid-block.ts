@@ -20,7 +20,7 @@ export const solidBlock: ModelDef = {
   params: binParams,
   groups: [
     { title: "Basic dimensions", collapsed: false, keys: ["widthModules", "lengthModules", "overallHeight", "wallThick", "floorThick", "clear", "pullTabHeight", "pullHoleLength", "lidPullHeight"] },
-    { title: "Module features", collapsed: true, keys: ["gridSpacing", "wallThick", "wallBump"] },
+    { title: "Module features", collapsed: true, keys: ["gridSpacing", "ribWidth", "wallBump"] },
   ],
   build: (p: ParamValues) => buildBinBody(p, true),
 };

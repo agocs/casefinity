@@ -54,8 +54,13 @@ Reverse-engineering/verification scripts (Node, in `scripts/`):
 - `src/models/` — each model is a `ModelDef` (see `types.ts`): a parameter
   schema plus a `build()` returning replicad `Shape3D`(s). The schema drives the
   auto-generated UI form; each param's `fusionName` ties back to the original
-  Fusion 360 user parameter in `f3d-extracted-parameters.md`. Bins share
-  `bin-common.ts` (`buildBinBody`, `binParams`, `box`, `moduleCenters`).
+  Fusion 360 user parameter in `f3d-extracted-parameters.md`. A `ModelDef` may
+  also declare optional `groups` (collapsible form sections referencing param
+  `key`s, rendered by `params-form.ts`) and `presets` (a dropdown that fills a
+  set of values); `all_options.md` documents each model's form layout — keep it
+  in sync. A `key` listed in a group must exist in `params` and appear in only
+  one group, or `params-form.ts` renders it twice / drops it to the top. Bins
+  share `bin-common.ts` (`buildBinBody`, `binParams`, `box`, `moduleCenters`).
 - `src/worker.ts` — comlink-exposed web worker; loads the OCCT WASM once
   (`replicad-opencascadejs`), builds/meshes models, exports STL/STEP blobs.
   `src/main.ts` wires the model selector, debounced param form (`params-form.ts`),
@@ -91,5 +96,13 @@ Reverse-engineering/verification scripts (Node, in `scripts/`):
   (not magic numbers), register in `src/models/index.ts`, verify with
   `diff-model.mjs`, then add expected bbox/volume to `smoke.mjs`. Achieved
   fidelity so far: bin-no-lid 0.02%, bin-double-sided 0.3% volume error;
-  all 6 models pass smoke. Document any deliberate gaps (like the with-lid
+  all 8 models pass smoke. Document any deliberate gaps (like the with-lid
   lid seat) in the model file's doc comment and the README table.
+- Model *defaults* may intentionally deviate from the Fusion originals for
+  printability — the perimeter ships a 3 mm wall / 4 mm floor vs the source's
+  1.2 mm / 1 mm liner (see `perimeter.ts` and README "Intentional deviations").
+  Ground-truth fidelity is asserted at the original thicknesses; `smoke.mjs`
+  checks the perimeter by bbox only (no volume), so a default thickness change
+  does not regress it. Record such deviations in the model doc comment and the
+  README, and if the default drives a self-derived smoke volume (e.g.
+  perimeter-square-corners) update that expected value too.

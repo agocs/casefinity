@@ -42,7 +42,10 @@ invariant breaks; a couple of pre-existing fragilities are marked `XFAIL`
 - `src/models/` — one file per model. Each exports a `ModelDef`: a parameter
   schema (used to auto-generate the UI form; `fusionName` ties each parameter
   back to the original Fusion 360 user parameter) and a `build()` function
-  returning replicad shapes.
+  returning replicad shapes. A `ModelDef` may also declare optional `groups`
+  (collapsible form sections, in display order) and `presets` (a dropdown that
+  fills in a set of parameter values); see `src/models/types.ts` and
+  `all_options.md` for the per-model form layout.
 - `src/worker.ts` — web worker that loads the OCCT WASM kernel once, builds
   models, meshes them for display, and exports STL/STEP/3MF blobs.
 - `src/three-mf.ts` — dependency-light 3MF writer (meshes → OPC ZIP via
@@ -61,14 +64,33 @@ invariant breaks; a couple of pre-existing fragilities are marked `XFAIL`
 
 | Model | Status | Fidelity vs ground truth |
 |---|---|---|
-| Perimeter | U-channel border + grid bumps + dovetail split (4 pieces, or auto-subdivided to fit a printer bed) + configurable dividers + case bottom-radius + print clearances (Stages 1-5) | bbox exact at nominal; fused volume 306k vs 405k (gap = flat-floor foot vs gusset ramp + design-specific divider layout); prints as dovetailed pieces that seat in the case |
+| Perimeter | U-channel border + grid bumps + dovetail split (4 pieces, or auto-subdivided to fit a printer bed) + configurable dividers + case bottom-radius + print clearances (Stages 1-5) | bbox exact at nominal; geometry fidelity measured at the original 1.2 mm wall / 1 mm floor (the shipped defaults are intentionally heavier — see *Intentional deviations* below); prints as dovetailed pieces that seat in the case |
 | Bin, no lid | complete | volume within 0.02% |
 | Bin with lid | bin complete; lid (plate + ramp + seat cut + configurable engraving + +X rail + rounded top edge/corners) | total volume within 0.4% of GT; GT has no lock notches (see below); an edge lip+groove is not yet ported |
 | Bin, double sided | complete — open tube + central floor with concave hopper fillet + interlock ribs + pull tab + 2 chamfered lids | bbox exact; body 68.3k vs 68.2k, total (body+2 lids) 87.3k vs 87.4k (0.03%) |
 | Perimeter template | complete — two 1mm test slices of the case wall, each a closed frame (rounded floor + tapered walls + top cap), across the width and the length | bbox exact; per-slice volume within ~1% |
 | Smooth perimeter (42 grid) | complete — reuses perimeter build (42mm grid, smooth/no bumps) | bbox exact; same foot/divider simplifications as perimeter |
-| Perimeter, square corners (beta) | new design, not a port — reuses perimeter build with a squared (not rounded) cavity corner, so a bin can occupy the corner-most grid cell flush; outer wall unchanged (still fits the case's rounded corner/bottom) | no ground truth (not an original `.f3d`, no such variant exists); smoke locks self-derived bbox 350×250×110 and volume 324232; `npm run scaling perimeter-square-corners` guards the squared-corner invariant |
+| Perimeter, square corners (beta) | new design, not a port — reuses perimeter build with a squared (not rounded) cavity corner, so a bin can occupy the corner-most grid cell flush; outer wall unchanged (still fits the case's rounded corner/bottom) | no ground truth (not an original `.f3d`, no such variant exists); smoke locks self-derived bbox 350×250×110 and volume 725903 (at the 3 mm wall / 4 mm floor defaults); `npm run scaling perimeter-square-corners` guards the squared-corner invariant |
 | Solid block | complete — the Bin (no lid) body with the interior cavity left uncut (`buildBinBody(p, true)`); keeps footprint, interlock ribs/sockets and pull tab. Stock for subtracting custom tool-holder pockets in CAD | no ground truth (not an original `.f3d`); smoke locks self-derived bbox 46.3×46.3×115 and volume 220848 |
+
+## Intentional deviations from the ground truth
+
+The ports reproduce the original geometry, but a few **defaults** are set richer
+than the Fusion 360 originals on purpose — the generated parts are meant to be
+printed and used standalone, not to round-trip the source file:
+
+- **Perimeter wall / floor thickness.** The Fusion originals use a 1.2 mm wall
+  and a 1 mm floor — a thin liner glued into a rigid case. The generator defaults
+  to a **3 mm wall** and **4 mm floor** so the frame is self-supporting and prints
+  robustly on its own. This applies to every perimeter variant (they share
+  `perimeterParams`). Set them back to 1.2 / 1 mm to reproduce the source
+  geometry. The fidelity figures in the porting table are measured at the
+  original thicknesses; the shipped defaults deliberately enclose more material
+  (e.g. the square-corners smoke volume is locked at the 3/4 mm defaults).
+
+The registration interface — rib/socket widths, grid pitch, bumps — is unchanged
+(it derives from `RIB_WIDTH`/`GRID_BUMP`, never `WALL_THICK`; see
+`src/models/registration.ts`), so parts built at either thickness still interlock.
 
 ## Fitting the perimeter to your printer
 

@@ -395,6 +395,17 @@ function splitPieces(frame: Shape3D, p: ParamValues): Shape3D[] {
   return [...longSegments(1), ...longSegments(-1), ...endSegments(1), ...endSegments(-1)];
 }
 
+/**
+ * Deliberate deviation from the ground truth: `wallThick` and `footThick`
+ * default to 3 mm / 4 mm, not the Fusion originals' 1.2 mm / 1 mm. The source
+ * design is a thin liner glued inside a rigid case; the generator ships a
+ * self-supporting frame meant to be printed and used standalone, so it defaults
+ * to heavier walls and floor. Neither drives the registration interface
+ * (rib/socket widths, grid pitch, bumps derive from RIB_WIDTH/GRID_BUMP — see
+ * registration.ts), so parts still interlock at any thickness. Set them back to
+ * 1.2 / 1 mm to reproduce the original geometry. See README "Intentional
+ * deviations from the ground truth".
+ */
 export const perimeterParams: ParamDef[] = [
     { key: "overallLength", fusionName: "OVERALL_LENGTH", label: "Case length", default: 350, unit: "mm", min: 60, max: 900, step: 1 },
     { key: "overallWidth", fusionName: "OVERALL_WIDTH", label: "Case width", default: 250, unit: "mm", min: 60, max: 900, step: 1 },
