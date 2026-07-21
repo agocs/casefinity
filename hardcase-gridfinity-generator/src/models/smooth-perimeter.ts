@@ -30,4 +30,11 @@ export const smoothPerimeter: ModelDef = {
     dividers: 2,
   }),
   build: buildPerimeter,
+  groups: [
+    { title: "Basic dimensions", collapsed: false, keys: ["overallLength", "overallWidth", "overallHeight", "wallThick", "footThick"] },
+    { title: "Advanced dimensions", collapsed: true, keys: ["bottomCornerRadius", "wallCornerRadius", "sideWallTaper", "frontWallTaper", "clearance"] },
+    { title: "Interior features", collapsed: true, keys: ["ribWidth", "sideBoarderBinAdd", "frontBoarderBinAdd", "dividers"] },
+    { title: "Module features", collapsed: true, keys: ["gridSpacing", "gridBump"] },
+    { title: "Printer convenience", collapsed: false, keys: ["split", "bedWidth", "bedDepth", "bedMargin", "dovetailWidth", "dovetailDepth", "dovetailAngle", "dovetailClear"] },
+  ],
 };

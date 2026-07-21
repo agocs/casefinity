@@ -13,5 +13,9 @@ export const binNoLid: ModelDef = {
     "snap into sockets on the neighbouring bin; one wall carries a pull tab " +
     "with a finger slot.",
   params: binParams,
+  groups: [
+    { title: "Basic dimensions", collapsed: false, keys: ["widthModules", "lengthModules", "overallHeight", "wallThick", "floorThick", "clear", "pullTabHeight", "pullHoleLength", "lidPullHeight"] },
+    { title: "Module features", collapsed: true, keys: ["gridSpacing", "wallThick", "wallBump"] },
+  ],
   build: buildBinBody,
 };

@@ -18,5 +18,9 @@ export const solidBlock: ModelDef = {
     "sockets and pull tab, but no interior cavity. Export it and subtract your " +
     "own pockets in CAD to make custom tool holders.",
   params: binParams,
+  groups: [
+    { title: "Basic dimensions", collapsed: false, keys: ["widthModules", "lengthModules", "overallHeight", "wallThick", "floorThick", "clear", "pullTabHeight", "pullHoleLength", "lidPullHeight"] },
+    { title: "Module features", collapsed: true, keys: ["gridSpacing", "wallThick", "wallBump"] },
+  ],
   build: (p: ParamValues) => buildBinBody(p, true),
 };

@@ -79,6 +79,10 @@ export const binDoubleSided: ModelDef = {
     "hopper divides the bin into two compartments; inset lids close each end. " +
     "Interlock ribs and pull tab match the other bin variants.",
   params: doubleSidedParams,
+  groups: [
+    { title: "Basic dimensions", collapsed: false, keys: ["widthModules", "lengthModules", "overallHeight", "wallThick", "floorThick", "clear", "pullTabHeight", "pullHoleLength", "lidPullHeight", "bottomFillet"] },
+    { title: "Module features", collapsed: true, keys: ["gridSpacing", "wallThick", "wallBump"] },
+  ],
   build(p: ParamValues): Shape3D[] {
     const w = p.widthModules * p.gridSpacing - 2 * p.clear;
     const d = p.lengthModules * p.gridSpacing - 2 * p.clear;

@@ -1,4 +1,70 @@
-import type { ModelDef, ParamValues } from "./models";
+import type { ModelDef, ParamDef, ParamValues } from "./models";
+
+/** Render a single param input (text, number, or checkbox). */
+function renderParam(
+  param: ParamDef,
+  values: Record<string, unknown>,
+  onChange: () => void,
+): HTMLElement {
+  const label = document.createElement("label");
+  label.className = "field";
+
+  const caption = document.createElement("span");
+  caption.textContent = param.label;
+  if (param.unit) {
+    const unit = document.createElement("em");
+    unit.className = "unit";
+    unit.textContent = `(${param.unit})`;
+    caption.appendChild(unit);
+  }
+
+  if (param.type === "boolean") {
+    label.className = "field checkbox-field";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.name = param.key;
+    input.checked = Boolean(values[param.key] ?? param.default);
+    input.addEventListener("change", () => {
+      values[param.key] = input.checked;
+      onChange();
+    });
+    const cap = document.createElement("span");
+    cap.className = "checkbox-label";
+    cap.textContent = param.label;
+    label.append(input, cap);
+    return label;
+  }
+
+  if (param.type === "text") {
+    const input = document.createElement("input");
+    input.type = "text";
+    input.name = param.key;
+    input.value = String(values[param.key] ?? param.default);
+    input.addEventListener("input", () => {
+      values[param.key] = input.value;
+      onChange();
+    });
+    label.append(caption, input);
+    return label;
+  }
+
+  // default: number
+  const input = document.createElement("input");
+  input.type = "number";
+  input.name = param.key;
+  input.value = String(values[param.key]);
+  if (param.min !== undefined) input.min = String(param.min);
+  if (param.max !== undefined) input.max = String(param.max);
+  if (param.step !== undefined) input.step = String(param.step);
+  input.addEventListener("input", () => {
+    const v = Number(input.value);
+    if (!Number.isFinite(v)) return;
+    values[param.key] = v;
+    onChange();
+  });
+  label.append(caption, input);
+  return label;
+}
 
 export function renderParamsForm(
   form: HTMLFormElement,
@@ -7,75 +73,42 @@ export function renderParamsForm(
   onChange: (values: ParamValues) => void,
 ): void {
   form.innerHTML = "";
+  const vals = values as Record<string, unknown>;
+  const paramMap = new Map(model.params.map((p) => [p.key, p]));
+  const grouped = new Set<string>();
+
+  const fire = () => onChange({ ...values });
+
+  // Render groups in order
+  if (model.groups) {
+    for (const group of model.groups) {
+      const section = document.createElement("details");
+      section.className = "param-group";
+      section.open = !group.collapsed;
+
+      const summary = document.createElement("summary");
+      summary.className = "param-group-title";
+      summary.textContent = group.title;
+      section.appendChild(summary);
+
+      const body = document.createElement("div");
+      body.className = "param-group-body";
+      for (const key of group.keys) {
+        const param = paramMap.get(key);
+        if (param) {
+          body.appendChild(renderParam(param, vals, fire));
+          grouped.add(key);
+        }
+      }
+      section.appendChild(body);
+      form.appendChild(section);
+    }
+  }
+
+  // Render any params not in a group at the top
   for (const param of model.params) {
-    if (param.type === "boolean") {
-      const label = document.createElement("label");
-      label.className = "field checkbox-field";
-
-      const input = document.createElement("input");
-      input.type = "checkbox";
-      input.name = param.key;
-      input.checked = Boolean(
-        (values as Record<string, unknown>)[param.key] ?? param.default,
-      );
-
-      input.addEventListener("change", () => {
-        (values as Record<string, unknown>)[param.key] = input.checked;
-        onChange({ ...values });
-      });
-
-      const caption = document.createElement("span");
-      caption.className = "checkbox-label";
-      caption.textContent = param.label;
-
-      label.append(input, caption);
-      form.appendChild(label);
-      continue;
-    }
-
-    const label = document.createElement("label");
-    label.className = "field";
-
-    const caption = document.createElement("span");
-    caption.textContent = param.label;
-    if (param.unit) {
-      const unit = document.createElement("em");
-      unit.className = "unit";
-      unit.textContent = `(${param.unit})`;
-      caption.appendChild(unit);
-    }
-
-    if (param.type === "text") {
-      const input = document.createElement("input");
-      input.type = "text";
-      input.name = param.key;
-      input.value = String((values as Record<string, unknown>)[param.key] ?? param.default);
-
-      input.addEventListener("input", () => {
-        (values as Record<string, unknown>)[param.key] = input.value;
-        onChange({ ...values });
-      });
-
-      label.append(caption, input);
-      form.appendChild(label);
-    } else {
-      const input = document.createElement("input");
-      input.type = "number";
-      input.name = param.key;
-      input.value = String(values[param.key]);
-      if (param.min !== undefined) input.min = String(param.min);
-      if (param.max !== undefined) input.max = String(param.max);
-      if (param.step !== undefined) input.step = String(param.step);
-
-      input.addEventListener("input", () => {
-        const value = Number(input.value);
-        if (!Number.isFinite(value)) return;
-        values[param.key] = value;
-        onChange({ ...values });
-      });
-
-      label.append(caption, input);
-      form.appendChild(label);
+    if (!grouped.has(param.key)) {
+      form.appendChild(renderParam(param, vals, fire));
     }
   }
 }

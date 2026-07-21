@@ -85,6 +85,11 @@ export const perimeterTemplate: ModelDef = {
     "Two 1mm cross-section slices of the hard case wall — one across the width, " +
     "one across the length — for test-fitting the wall profile against the case.",
   params: templateParams,
+  groups: [
+    { title: "Basic dimensions", collapsed: false, keys: ["overallLength", "overallWidth", "overallHeight", "testOffset", "testThick"] },
+    { title: "Advanced dimensions", collapsed: true, keys: ["bottomCornerRadius", "sideWallTaper", "frontWallTaper"] },
+    { title: "Printer convenience", collapsed: false, keys: ["generateLength", "generateWidth"] },
+  ],
   build(p: ParamValues): Shape3D[] {
     const shell = caseShell(p);
     const L = p.overallLength;

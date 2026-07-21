@@ -147,6 +147,11 @@ export const binWithLid: ModelDef = {
     { key: "lidLockOffset", fusionName: "LID_LOCK_OFFSET", label: "Lid lock offset", default: 0.2, unit: "mm", min: 0, max: 1, step: 0.1 },
     { key: "lidLabel", fusionName: "LID_LABEL", type: "text", label: "Lid label", default: "TOP" },
   ],
+  groups: [
+    { title: "Basic dimensions", collapsed: false, keys: ["widthModules", "lengthModules", "overallHeight", "wallThick", "floorThick", "clear", "pullTabHeight", "pullHoleLength", "lidPullHeight", "lidLabel"] },
+    { title: "Advanced dimensions", collapsed: true, keys: ["lidThick", "lidClear", "lidLockOffset"] },
+    { title: "Module features", collapsed: true, keys: ["gridSpacing", "wallThick", "wallBump"] },
+  ],
   build(p) {
     const lid = buildLid(p);
     // Cut the lid's footprint out of the body so the lid seats in a groove in

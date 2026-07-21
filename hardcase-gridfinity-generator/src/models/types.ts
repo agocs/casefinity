@@ -37,11 +37,23 @@ export function boolParam(p: ParamValues, key: string, fallback = true): boolean
   return fallback;
 }
 
+/** A collapsible section of parameters in the UI form. */
+export interface ParamGroup {
+  /** Section heading. */
+  title: string;
+  /** True if the section should be collapsed by default. */
+  collapsed: boolean;
+  /** Param keys in display order within this section. */
+  keys: string[];
+}
+
 export interface ModelDef {
   id: string;
   name: string;
   description: string;
   params: ParamDef[];
+  /** Optional collapsible groups. Params not in any group render first. */
+  groups?: ParamGroup[];
   build(p: ParamValues): Shape3D | Shape3D[];
 }
 
