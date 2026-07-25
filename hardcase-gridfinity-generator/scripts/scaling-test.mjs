@@ -241,6 +241,26 @@ const cavityModuleExact = () => (shapes, p) => {
   return { ok, msg: `cavity-interior intrusion ${vIn.toFixed(1)} mm³ (want ~0); wall-at-boundary ${vWall.toFixed(1)} mm³ (want ≳ 6)` };
 };
 
+// The near-floor wall/fillet thickening (floorCollar in perimeter.ts): when
+// FLOOR_THICK > WALL_THICK, rebuild the SAME model with FLOOR_THICK forced
+// down to WALL_THICK (which makes floorCollar a no-op) and assert the
+// thickened version has strictly more material. A pure volume-delta check
+// rather than a spatial probe — deliberately, since two earlier attempts at
+// building this feature passed a "the collar shape looks fine in isolation"
+// check while silently contributing ~0 net volume once fused (the collar's
+// own boundary sat entirely inside — or outside — the real wall). Comparing
+// total volume against a same-shape baseline can't be fooled by that.
+const floorCollarAddsMaterial = (modelId) => (shapes, p) => {
+  if (p.footThick <= p.wallThick) return { ok: true, msg: "n/a (footThick <= wallThick, no collar expected)" };
+  const baseline = modelById(modelId).build({ ...p, footThick: p.wallThick });
+  const baseShapes = Array.isArray(baseline) ? baseline : [baseline];
+  const vThis = shapes.reduce((a, s) => a + measureVolume(s), 0);
+  const vBase = baseShapes.reduce((a, s) => a + measureVolume(s), 0);
+  for (const s of baseShapes) s.delete?.();
+  const delta = vThis - vBase;
+  return { ok: delta > 0, msg: `footThick=${p.footThick} vs footThick=${p.wallThick} (no collar): +${delta.toFixed(0)} mm³ (want > 0)` };
+};
+
 // perimeter-square-corners: the cavity corner must be genuinely square, not
 // just a smaller rounding — assert a whole corner-module-sized cell at the
 // cavity's outer corner is mostly void (a bin-sized footprint fits flush
@@ -484,12 +504,42 @@ const SUITES = {
     // filleted base (outerInnerY < bump tip) and the fuse left a zero-volume
     // flake; addDividers now clamps the outer edge, so every piece stays one
     // clean solid. Kept as a variant to guard the fix.
-    // Bed variants exercise the auto-subdivision: a bed size adds dovetail seams
-    // so no piece exceeds the usable area; the base (no-bed) case stays 4 pieces.
+    // (The no-collar path, footThick<=wallThick, is exercised in perimeter-inv2
+    // instead; the bed-subdivision variants live in perimeter-bed, their own
+    // process — see the note there.)
     variants: [
       {},
       { overallLength: 250, overallWidth: 180 },
       { overallHeight: 70 },
+    ],
+    checks: [
+      ["piece count (bed-fit split)", pieceCountMatches()],
+      ["each piece is a single clean solid (no debris)", eachIsOneSolid()],
+      ["assembled bbox = OVERALL_* (pieces stay in place)", bboxMatches(overallBBox)],
+      ["every piece fits the bed", fitsBed()],
+      ["end-cap ribs survive subdivision", endCapRibsPresent()],
+      ["cavity opening = N·P modules exactly (INV-7, any t)", cavityModuleExact()],
+      ["grid ribs are RIB_WIDTH × GRID_BUMP (INV-2)", gridRibDimsTrackRibWidth()],
+      ["grooves are RIB_WIDTH wide, blind in any wall (INV-2/REQ-4.4)", grooveWidthTracksRibWidth()],
+      ["dividers don't refill the grooves they cross", dividerGroovesStayOpen()],
+      ["cavity is open (hollow frame)", (s, p) => {
+        const v = centerColumnVolume(s, 10, 10, p.overallHeight - 10);
+        return { ok: v < 5, msg: `centre-column volume ${v.toFixed(1)} mm³ (want ~0)` };
+      }],
+    ],
+  },
+  // Bed-subdivision variants only, in their own process: each adds dovetail
+  // seams so no piece exceeds the usable bed area, which multiplies the
+  // segment count (and so the per-build boolean-op cost) well beyond the
+  // plain 4-piece split above. Splitting these into a second process is the
+  // same fix as perimeter-inv2 for the same underlying constraint — the OCCT
+  // WASM heap is small, and floorCollar's extra fuse (see perimeter.ts) was
+  // just enough additional per-build cost to tip the heaviest of these
+  // (bedWidth=300×150) over the shared heap's limit when it ran as an 8th
+  // variant alongside the plain-split ones above.
+  "perimeter-bed": {
+    model: "perimeter",
+    variants: [
       { bedWidth: 256, bedDepth: 256 },
       { bedWidth: 220, bedDepth: 220 },
       { bedWidth: 180, bedDepth: 180 }, // end cap subdivides (nEnd=2) → exercises endCapRibsPresent
@@ -527,6 +577,7 @@ const SUITES = {
       { split: 0, wallThick: 2.5 },
       { split: 0, wallThick: 6 },
       { split: 0, ribWidth: 1.8 },
+      { split: 0, footThick: 1 }, // footThick <= wallThick(3): the no-collar path
     ],
     checks: [
       ["single unsplit piece", pieceCountMatches()],
@@ -536,6 +587,12 @@ const SUITES = {
       ["grid ribs are RIB_WIDTH × GRID_BUMP (INV-2)", gridRibDimsTrackRibWidth()],
       ["grooves are RIB_WIDTH wide, blind in any wall (INV-2/REQ-4.4)", grooveWidthTracksRibWidth()],
       ["dividers don't refill the grooves they cross", dividerGroovesStayOpen()],
+      // Split builds are the heaviest thing in this file; running an EXTRA
+      // full rebuild inside this check per variant pushed the "perimeter"
+      // suite's shared OCCT heap past its limit (measured: later variants
+      // started failing to build at all). This suite is unsplit (split:0,
+      // cheap) and its own child process, so it's the safe place for it.
+      ["near-floor wall thickening adds real material", floorCollarAddsMaterial("perimeter")],
       ["cavity is open (hollow frame)", (s, p) => {
         const v = centerColumnVolume(s, 10, 10, p.overallHeight - 10);
         return { ok: v < 5, msg: `centre-column volume ${v.toFixed(1)} mm³ (want ~0)` };

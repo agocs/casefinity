@@ -24,6 +24,11 @@ import { gridCenters, interlockDims, ribWidthParam } from "./registration.ts";
  * (see splitPieces); configurable divider cross-ribs on the long sides (see
  * addDividers); and the case bottom-corner radius rolled into the outer wall
  * (see outerLoft / filletInset) so the pieces seat cleanly in the case.
+ * FLOOR_THICK isn't only the flat floor cap's own height — it also ramps the
+ * outer wall's thickness up near the base of that same bottom fillet, so the
+ * whole ≤30°-from-horizontal region (a shallow, support-needing overhang, and
+ * exactly where a printed piece flexes most) is as thick as the floor rather
+ * than dropping straight to WALL_THICK (see floorCollar).
  *
  * Remaining simplification: the foot is a flat floor rather than the real gusset
  * ramp, but the fit-critical outer surface (taper + bottom fillet) matches.
@@ -75,6 +80,68 @@ function outerLoft(inset: number, p: ParamValues): Shape3D {
   const fillet = base.loftWith(rest) as Shape3D;
   const body = outerAt(r, inset, p).loftWith(outerAt(p.overallHeight, inset, p)) as Shape3D;
   return fillet.fuse(body);
+}
+
+/**
+ * Extra wall material ramping from FLOOR_THICK at z=0 down to WALL_THICK at
+ * z=0.3*bottomCornerRadius (the fillet loft's own next sample). The fillet is
+ * a quarter-round of radius r=bottomCornerRadius, so its tangent is θ from
+ * horizontal at height r(1−cos θ) — the tangent reaches 30° from horizontal
+ * at just r(1−cos30°) ≈ 0.134*r, well inside this ramp's 0..0.3*r span, so
+ * the whole ≤30°-from-horizontal zone sits within it. A 30°-from-horizontal
+ * overhang is a shallow one in FDM terms (it needs support if left thin) and
+ * is exactly where a printed piece flexes most, so thickening it toward the
+ * floor's own thickness makes that band self-supporting and stiffens the
+ * piece. The ramp must reach ABOVE the flat floor cap's own height (built
+ * separately in buildPerimeter, z=0..FLOOR_THICK) or the extra material is
+ * entirely masked by it: at typical defaults FLOOR_THICK alone already
+ * reaches past the 30° point, so a collar that stopped there would add next
+ * to nothing — reaching to 0.3*r instead extends real, unmasked thickness
+ * above the floor cap, right where the wall would otherwise drop straight
+ * back to WALL_THICK.
+ *
+ * `wallInner` MUST be the actual `outerLoft(t, p)` already built for the wall
+ * cut in buildPerimeter (not re-derived here): the fillet is a circular arc,
+ * a nonlinear function of z, and a fresh 2-point loft at inset=t can't
+ * reproduce that curve — it comes out MORE pulled-in than the real wall at
+ * every intermediate height, so a from-scratch "outer" edge sits entirely
+ * inside the real wall's own solid and contributes exactly zero volume when
+ * fused (measured — an earlier version did this and the frame's total volume
+ * didn't move at all). Restricting the real wallInner to z<=zEnd guarantees
+ * the collar's outer face is pixel-for-pixel the same surface as the wall's.
+ *
+ * The ramp itself is a single, monotonic two-point loft — inset=FLOOR_THICK
+ * at z=0 straight to inset=WALL_THICK at zEnd, no intermediate "hold flat
+ * then bend" sample. Two earlier attempts added a middle sample (at the 30°
+ * height) to keep the near-horizontal zone uniformly thick before ramping:
+ * one mixed it into outerLoft's own 5-section spline and it overshot enough
+ * to measure LESS total material than before; the other kept it as its own
+ * short 3-section loft and *that* overshot too, past the real wall's surface,
+ * erasing nearly the whole collar (measured: 350 mm³ instead of the ~2900 mm³
+ * a sane ramp gives). A flat-plateau-then-bend profile is exactly the shape
+ * that makes a spline loft overshoot regardless of how few points it's split
+ * across; a plain monotonic 2-point ramp has no such inflection to overshoot.
+ *
+ * `outerInnerY` (used by addDividers to trace a rib's outer edge) still
+ * assumes a flat WALL_THICK inset; that's conservative here, not wrong — it
+ * places the divider's outer edge further out than this collar's actual inner
+ * face, so the rib fuse only picks up extra (harmless) overlap, never a gap.
+ */
+function floorCollar(p: ParamValues, wallInner: Shape3D): Shape3D | null {
+  const t = p.wallThick;
+  if (p.footThick <= t) return null; // FLOOR_THICK no thicker than the wall — nothing to add
+  const r = p.bottomCornerRadius;
+  const zEnd = 0.3 * r; // > filletAngleZ(30, p) ≈ 0.134*r always; matches outerLoft's own sample
+  // Cutter sized to the case, not an arbitrary huge box — cheaper for OCCT,
+  // and this runs on every build (unlike splitPieces' own `big`, computed once
+  // per split), so the small WASM heap on heavy bed-split configurations feels
+  // the difference (measured: an oversized cutter here was enough to tip the
+  // heaviest bed-fit variant over the limit).
+  const big = Math.max(p.overallLength, p.overallWidth);
+  const cutter = (drawRectangle(big, big).sketchOnPlane("XY", 0) as Sketch).extrude(zEnd) as Shape3D;
+  const outerShell = wallInner.clone().intersect(cutter);
+  const innerShell = (outerAt(0, p.footThick, p) as Sketch).loftWith(outerAt(zEnd, t, p)) as Shape3D;
+  return outerShell.cut(innerShell) as Shape3D;
 }
 
 /** Cavity opening dimensions: OVERALL_* minus the recovered side/front border
@@ -431,7 +498,8 @@ export function buildPerimeter(p: ParamValues): Shape3D | Shape3D[] {
     // leaves boolean debris on tapered lofts, and OCCT shell() fails outright.
     // Build the outer block once and reuse it (wall cut, divider bounding).
     const outer = outerLoft(0, p);
-    const outerWall = outer.clone().cut(outerLoft(t, p));
+    const wallInner = outerLoft(t, p);
+    const outerWall = outer.clone().cut(wallInner.clone());
 
     // Inner (cavity) wall: vertical thin tube on the border side of the cavity.
     const innerWall = (cavityAt(0, t, p) as Sketch)
@@ -446,7 +514,11 @@ export function buildPerimeter(p: ParamValues): Shape3D | Shape3D[] {
       .extrude(p.footThick)
       .cut((cavityAt(0, 0, p) as Sketch).extrude(p.footThick)) as Shape3D;
 
-    const frame = (outerWall as Shape3D).fuse(innerWall).fuse(floor);
+    let frame = (outerWall as Shape3D).fuse(innerWall).fuse(floor);
+    // Thicken the near-horizontal base of the fillet up to FLOOR_THICK — see
+    // floorCollar.
+    const collar = floorCollar(p, wallInner);
+    if (collar) frame = frame.fuse(collar);
     // When splitting, grid features + dividers are added per piece (splitPieces);
     // otherwise apply them to the whole frame.
     if (p.split) return splitPieces(frame, p);
