@@ -25,6 +25,12 @@ exports:
 The designs belong to the Hardcase Gridfinity creator; license for publishing a
 public generator is unresolved (see README).
 
+## Git workflow
+
+Before starting a new feature: pull the latest `main` and branch off of it.
+Do the work on that branch. When it's ready, merge the branch into `main` and
+push `main` — don't develop directly on `main`.
+
 ## Commands
 
 All in `hardcase-gridfinity-generator/`. Node is installed via Homebrew; if
