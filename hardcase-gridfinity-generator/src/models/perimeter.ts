@@ -41,11 +41,20 @@ import { gridCenters, interlockDims, ribWidthParam } from "./registration.ts";
  * frame has material only in the floor slab), so an assembled frame can splay at
  * the mouth; a screw at each seam closes it. Hole sizes come from the REMFORM® II
  * brochure and the pads are proportioned for FDM PETG rather than for moulding —
- * see bossDims. Two caveats: the screw drives ALONG the channel, so a full-height
+ * see bossDims. Three caveats: the screw drives ALONG the channel, so a full-height
  * divider between the boss and the nearest opening limits how straight a driver
- * can come in (~57 mm of clear run at the default divider spacing); and on a case
+ * can come in (~57 mm of clear run at the default divider spacing); on a case
  * too shallow for the full 45° gusset the ramp is clamped to land on the floor
- * slab, leaving an overhang steeper than 45° that wants support.
+ * slab, leaving an overhang steeper than 45° that wants support; and on an
+ * absurdly shallow case the gusset clips out THROUGH the wall — the pad's outer
+ * face is flat, placed where the wall runs at the rim, but the feature is ~2*pad
+ * tall (15.8 mm at the M3 defaults), and over that height the wall leans inward
+ * (taper, then much faster inside the bottom corner radius), so the pad sits ever
+ * deeper in the wall toward its foot and eventually breaks out the far side.
+ * Measured at the defaults: nothing at 27 mm of case depth, 0.7 mm proud at 25 mm,
+ * 5.1 mm at 20 mm. Accepted, not fixed (see the README's "Known limitations"):
+ * every real hard case is 100 mm-plus deep, and following the fillet would trade a
+ * flat, drillable boss face for a curved one on geometry nobody prints.
  *
  * Print clearances (both default to a nominal fit; dial in per printer/material):
  *   - `clearance` (CLEARANCE) shrinks the whole outer envelope so the assembled

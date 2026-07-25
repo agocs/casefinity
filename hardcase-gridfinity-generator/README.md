@@ -130,7 +130,7 @@ side means the defaults want an **M3 × 12 thread-forming screw for plastics**
 (REMFORM, Plastite, PT or similar — not a machine screw). The pad's whole
 underside is a 45° ramp to the wall, so it prints without support.
 
-Two things to know before you print:
+Three things to know before you print:
 
 - The screw drives **along** the channel, so a straight driver run has to fit
   between the boss and the nearest full-height obstruction. At the default divider
@@ -142,9 +142,28 @@ Two things to know before you print:
   the M3 defaults) the ramp is clamped to land on the floor slab and becomes
   steeper than 45°, which wants support. Bosses are dropped entirely if the pad
   cannot fit between the rim and the floor, or across the border width.
+- **Absurdly shallow cases: the gusset clips out through the wall.** The pad's
+  outer face is flat and placed where the wall runs at the *rim*, sunk 0.4 mm into
+  it, while the boss feature is about `2 × pad` tall (15.8 mm at the M3 defaults).
+  Over that height the wall leans inward — by the taper, and much faster once the
+  case's bottom corner radius (19.05 mm) starts rolling it in — so the pad sits
+  progressively deeper in the wall toward its foot, and breaks out through the far
+  side once that exceeds the wall thickness. Measured at the defaults: nothing at
+  27 mm of case depth, **0.7 mm proud at 25 mm, 5.1 mm proud at 20 mm** — so the
+  threshold is around 26 mm, and such a piece would not seat in the real case.
+  **Not fixed on purpose**: every real hard case is 100 mm-plus deep, and having
+  the boss follow the fillet would trade a flat, drillable face for a curved one on
+  geometry nobody prints. On a genuinely shallow liner, either leave the bosses off
+  or shrink the pad — a smaller **Boss screw size** or **Boss material around
+  hole** lowers the whole feature, and a thicker wall gives it more to hide in.
 
 ## Known limitations
 
+- **Screw-boss gussets clip out through the wall on absurdly shallow cases** —
+  around 26 mm of case depth and below at the M3 defaults (0.7 mm proud at 25 mm,
+  5.1 mm at 20 mm), because the boss feature is taller than the clean run between
+  the rim and the case's bottom corner radius. Accepted, not fixed — see
+  *Screwing the pieces together* above for the mechanism and the ways around it.
 - The with-lid lid now models the +X sliding rail (a rounded bead that seats in
   a wall groove; the deeper -X locking tongue was already present) and the
   rounded top corners / softened top edge. Cross-sectioning the ground truth
