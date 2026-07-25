@@ -561,6 +561,33 @@ const SUITES = {
       }],
     ],
   },
+  // Screw bosses at the seams (bosses:1), in their own suite for a fresh OCCT
+  // heap like the bed variants above. The pads and their stepped holes are the
+  // last thing fused/cut onto each piece, so what can go wrong here is a pad
+  // straddling a seam or landing on a piece it doesn't belong to — which shows
+  // up as debris, a second solid, or a piece that no longer fits the bed. The
+  // hole DIMENSIONS (clearance vs pilot, open right through a joint) are asserted
+  // in smoke.mjs; these variants cover the seams the default split doesn't have,
+  // i.e. the interior bed-split ones on both the long rails and the end caps.
+  "perimeter-bosses": {
+    model: "perimeter",
+    variants: [
+      { bosses: 1 },
+      { bosses: 1, bedWidth: 250, bedDepth: 210 }, // rails and caps both subdivide
+      { bosses: 1, bossScrewDia: 5, bossLen: 10, bossWall: 3 }, // M5: pad 11.2 mm, still inside the border
+      { bosses: 1, overallHeight: 40, dividers: 0 }, // shallow-ish, and no dividers for a pad to merge with
+    ],
+    checks: [
+      ["piece count (bed-fit split)", pieceCountMatches()],
+      ["each piece is a single clean solid (no debris)", eachIsOneSolid()],
+      ["assembled bbox = OVERALL_* (pads stay inside the case)", bboxMatches(overallBBox)],
+      ["every piece fits the bed", fitsBed()],
+      ["cavity is open (pads don't reach into it)", (s, p) => {
+        const v = centerColumnVolume(s, 10, 10, p.overallHeight - 10);
+        return { ok: v < 5, msg: `centre-column volume ${v.toFixed(1)} mm³ (want ~0)` };
+      }],
+    ],
+  },
   // The INV-2 wall-thickness sweep, in its own suite so it gets a fresh OCCT
   // heap (appended to the perimeter suite it exhausts the WASM heap and the
   // builds abort). Unsplit (split: 0) — cheaper, and the invariants don't

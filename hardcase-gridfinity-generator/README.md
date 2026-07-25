@@ -64,7 +64,7 @@ invariant breaks; a couple of pre-existing fragilities are marked `XFAIL`
 
 | Model | Status | Fidelity vs ground truth |
 |---|---|---|
-| Perimeter | U-channel border + grid bumps + dovetail split (4 pieces, or auto-subdivided to fit a printer bed) + configurable dividers + case bottom-radius + print clearances (Stages 1-5) | bbox exact at nominal; geometry fidelity measured at the original 1.2 mm wall / 1 mm floor (the shipped defaults are intentionally heavier — see *Intentional deviations* below); prints as dovetailed pieces that seat in the case |
+| Perimeter | U-channel border + grid bumps + dovetail split (4 pieces, or auto-subdivided to fit a printer bed) + optional screw bosses at every seam (see *Screwing the pieces together*) + configurable dividers + case bottom-radius + print clearances (Stages 1-5) | bbox exact at nominal; geometry fidelity measured at the original 1.2 mm wall / 1 mm floor (the shipped defaults are intentionally heavier — see *Intentional deviations* below); prints as dovetailed pieces that seat in the case |
 | Bin, no lid | complete | volume within 0.02% |
 | Bin with lid | bin complete; lid (plate + ramp + seat cut + configurable engraving + +X rail + rounded top edge/corners) | total volume within 0.4% of GT; GT has no lock notches (see below); an edge lip+groove is not yet ported |
 | Bin, double sided | complete — open tube + central floor with concave hopper fillet + interlock ribs + pull tab + 2 chamfered lids | bbox exact; body 68.3k vs 68.2k, total (body+2 lids) 87.3k vs 87.4k (0.03%) |
@@ -105,6 +105,43 @@ to `0` (= no limit), which reproduces the original four pieces. Every export
 format works — 3MF names each piece separately. `splitPieces` in
 `src/models/perimeter.ts` is the single source; `npm run scaling` asserts that
 across bed sizes every piece is one clean solid and fits the bed.
+
+## Screwing the pieces together
+
+The dovetails join the pieces only at floor level — the tang band lies between the
+cavity wall and the case wall, where the frame is just the floor slab — so a tall
+assembled frame can still splay apart at the mouth. Ticking **Screw bosses at
+split lines** (off by default) adds a pad either side of every seam, at the rim on
+the inside of the case wall: a **clearance hole** on the piece that carries the
+tang and a concentric **thread-forming pilot hole** on its mate, so tightening a
+plastic screw pulls the tang home and closes the joint at the top.
+
+Hole sizes follow the [REMFORM® II brochure](https://taptite.com/assets/files/REMFORM-II-BROCHURE-CONTI-REMINC-2023.pdf)
+(REMINC/CONTI, pp. 2–3): the clearance hole is the screw's **maximum major
+diameter** and the pilot hole is the **recommended hole size**, a material factor
+times the minimum major diameter. The factor defaults to **0.80**, the brochure's
+value for PET / PBT / PC / PS — PETG is not listed and PET and PC are its closest
+relatives. Printing something else, use your own row: 0.75 for PP, PE, PA 6/6.6,
+ABS, ASA; 0.82–0.85 for 30 % glass-filled. At the M3 default that is a 3.10 mm
+clearance hole and a 2.40 mm pilot, in a 7.9 mm pad (≈ 2.6 × nominal, heavier than
+the 2 × moulding rule of thumb because the boss prints with its axis horizontal,
+so hoop stress at the hole runs partly across layer lines). 6 mm of engagement per
+side means the defaults want an **M3 × 12 thread-forming screw for plastics**
+(REMFORM, Plastite, PT or similar — not a machine screw). The pad's whole
+underside is a 45° ramp to the wall, so it prints without support.
+
+Two things to know before you print:
+
+- The screw drives **along** the channel, so a straight driver run has to fit
+  between the boss and the nearest full-height obstruction. At the default divider
+  spacing that is about 57 mm of clear channel — fine for a stubby driver or a
+  ball-end key, tight for an inline bit and handle. Fewer **dividers per long
+  side** gives more room. No other screw axis would cross the seam, so this is
+  inherent, not a bug.
+- On a case too shallow for the full 45° gusset (roughly under 20 mm of depth at
+  the M3 defaults) the ramp is clamped to land on the floor slab and becomes
+  steeper than 45°, which wants support. Bosses are dropped entirely if the pad
+  cannot fit between the rim and the floor, or across the border width.
 
 ## Known limitations
 
