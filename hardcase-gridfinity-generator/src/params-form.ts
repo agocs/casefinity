@@ -72,75 +72,97 @@ export function renderParamsForm(
   values: ParamValues,
   onChange: (values: ParamValues) => void,
 ): void {
-  form.innerHTML = "";
   const vals = values as Record<string, unknown>;
   const paramMap = new Map(model.params.map((p) => [p.key, p]));
-  const grouped = new Set<string>();
+  const presets = model.presets ?? [];
+  // The label of the preset currently applied (empty = "— Custom —"). Tracked
+  // across re-renders so the dropdown keeps showing the chosen preset.
+  let selectedPreset = "";
+  let presetSelect: HTMLSelectElement | null = null;
 
-  const fire = () => onChange({ ...values });
-
-  // Presets dropdown (above sections)
-  if (model.presets && model.presets.length > 0) {
-    const presetLabel = document.createElement("label");
-    presetLabel.className = "field";
-    const caption = document.createElement("span");
-    caption.textContent = "Preset";
-    const select = document.createElement("select");
-    select.name = "preset";
-    // Default option
-    const noneOpt = document.createElement("option");
-    noneOpt.value = "";
-    noneOpt.textContent = "— Custom —";
-    select.appendChild(noneOpt);
-    for (const preset of model.presets) {
-      const opt = document.createElement("option");
-      opt.value = preset.label;
-      opt.textContent = preset.label;
-      select.appendChild(opt);
+  // A hand edit means the values no longer match a named preset, so drop the
+  // dropdown back to "— Custom —" (without a full re-render — that would steal
+  // focus mid-keystroke) and rebuild the model.
+  const onEdit = () => {
+    if (selectedPreset && presetSelect) {
+      selectedPreset = "";
+      presetSelect.value = "";
     }
-    select.addEventListener("change", () => {
-      const preset = model.presets?.find((p) => p.label === select.value);
-      if (preset) {
+    onChange({ ...values });
+  };
+
+  const render = () => {
+    form.innerHTML = "";
+    const grouped = new Set<string>();
+
+    // Presets dropdown (above sections)
+    if (presets.length > 0) {
+      const presetLabel = document.createElement("label");
+      presetLabel.className = "field";
+      const caption = document.createElement("span");
+      caption.textContent = "Preset";
+      const select = document.createElement("select");
+      select.name = "preset";
+      // Default option
+      const noneOpt = document.createElement("option");
+      noneOpt.value = "";
+      noneOpt.textContent = "— Custom —";
+      select.appendChild(noneOpt);
+      for (const preset of presets) {
+        const opt = document.createElement("option");
+        opt.value = preset.label;
+        opt.textContent = preset.label;
+        select.appendChild(opt);
+      }
+      select.value = selectedPreset;
+      select.addEventListener("change", () => {
+        const preset = presets.find((p) => p.label === select.value);
+        if (!preset) return;
+        selectedPreset = preset.label;
         for (const [key, val] of Object.entries(preset.values)) {
-          (vals as Record<string, unknown>)[key] = val;
+          vals[key] = val;
         }
-        fire();
-      }
-    });
-    presetLabel.append(caption, select);
-    form.appendChild(presetLabel);
-  }
+        render(); // refresh the inputs so they show the preset's values…
+        onChange({ ...values }); // …and rebuild the model
+      });
+      presetSelect = select;
+      presetLabel.append(caption, select);
+      form.appendChild(presetLabel);
+    }
 
-  // Render groups in order
-  if (model.groups) {
-    for (const group of model.groups) {
-      const section = document.createElement("details");
-      section.className = "param-group";
-      section.open = !group.collapsed;
+    // Render groups in order
+    if (model.groups) {
+      for (const group of model.groups) {
+        const section = document.createElement("details");
+        section.className = "param-group";
+        section.open = !group.collapsed;
 
-      const summary = document.createElement("summary");
-      summary.className = "param-group-title";
-      summary.textContent = group.title;
-      section.appendChild(summary);
+        const summary = document.createElement("summary");
+        summary.className = "param-group-title";
+        summary.textContent = group.title;
+        section.appendChild(summary);
 
-      const body = document.createElement("div");
-      body.className = "param-group-body";
-      for (const key of group.keys) {
-        const param = paramMap.get(key);
-        if (param) {
-          body.appendChild(renderParam(param, vals, fire));
-          grouped.add(key);
+        const body = document.createElement("div");
+        body.className = "param-group-body";
+        for (const key of group.keys) {
+          const param = paramMap.get(key);
+          if (param) {
+            body.appendChild(renderParam(param, vals, onEdit));
+            grouped.add(key);
+          }
         }
+        section.appendChild(body);
+        form.appendChild(section);
       }
-      section.appendChild(body);
-      form.appendChild(section);
     }
-  }
 
-  // Render any params not in a group at the top
-  for (const param of model.params) {
-    if (!grouped.has(param.key)) {
-      form.appendChild(renderParam(param, vals, fire));
+    // Render any params not in a group at the top
+    for (const param of model.params) {
+      if (!grouped.has(param.key)) {
+        form.appendChild(renderParam(param, vals, onEdit));
+      }
     }
-  }
+  };
+
+  render();
 }
