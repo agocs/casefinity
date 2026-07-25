@@ -42,6 +42,14 @@
 - Dovetail angle
 - Dovetail clearance
 
+## Screw bosses (collapsed)
+
+- Screw bosses at split lines (needs split)
+- Boss screw size (nominal dia)
+- Pilot hole factor (x min screw dia)
+- Boss length (each side of seam)
+- Boss material around hole
+
 # Smooth perimeter (gridfinity interior)
 
 ## Basic dimensions (expanded)
@@ -86,6 +94,14 @@
 - Dovetail angle
 - Dovetail clearance
 
+## Screw bosses (collapsed)
+
+- Screw bosses at split lines (needs split)
+- Boss screw size (nominal dia)
+- Pilot hole factor (x min screw dia)
+- Boss length (each side of seam)
+- Boss material around hole
+
 # Perimeter (square corners, beta)
 
 ## Basic dimensions (expanded)
@@ -129,6 +145,14 @@
 - Dovetail depth
 - Dovetail angle
 - Dovetail clearance
+
+## Screw bosses (collapsed)
+
+- Screw bosses at split lines (needs split)
+- Boss screw size (nominal dia)
+- Pilot hole factor (x min screw dia)
+- Boss length (each side of seam)
+- Boss material around hole
 
 # Bin (no lid)
 
