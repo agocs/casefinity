@@ -66,7 +66,7 @@ invariant breaks; a couple of pre-existing fragilities are marked `XFAIL`
 |---|---|---|
 | Perimeter | U-channel border + grid bumps + dovetail split (4 pieces, or auto-subdivided to fit a printer bed) + optional screw bosses at every seam (see *Screwing the pieces together*) + configurable dividers + case bottom-radius + print clearances (Stages 1-5) | bbox exact at nominal; geometry fidelity measured at the original 1.2 mm wall / 1 mm floor (the shipped defaults are intentionally heavier — see *Intentional deviations* below); prints as dovetailed pieces that seat in the case |
 | Bin, no lid | complete | volume within 0.02% |
-| Bin with lid | bin complete; lid (plate + ramp + seat cut + configurable engraving + +X rail + rounded top edge/corners) | total volume within 0.4% of GT; GT has no lock notches (see below); an edge lip+groove is not yet ported |
+| Bin with lid | complete — plate flush with the rim, a half-round rail bead on each edge running in a wall groove (-X) and a continuous rail ledge (+X), the interference lock over the last `LID_LOCK_LENGTH`, the finger-pull scoop, the entry-edge socket notches and a configurable engraving | body within 0.014%, lid within 0.03% (excluding the engraving, which uses a different font), total 33754 vs GT 33722 (0.09%); `npm run smoke` asserts the retention features directly |
 | Bin, double sided | complete — open tube + central floor with concave hopper fillet + interlock ribs + pull tab + 2 chamfered lids | bbox exact; body 68.3k vs 68.2k, total (body+2 lids) 87.3k vs 87.4k (0.03%) |
 | Perimeter template | complete — two 1mm test slices of the case wall, each a closed frame (rounded floor + tapered walls + top cap), across the width and the length | bbox exact; per-slice volume within ~1% |
 | Smooth perimeter (42 grid) | complete — reuses perimeter build (42mm grid, smooth/no bumps) | bbox exact; same foot/divider simplifications as perimeter |
@@ -164,13 +164,21 @@ Three things to know before you print:
   5.1 mm at 20 mm), because the boss feature is taller than the clean run between
   the rim and the case's bottom corner radius. Accepted, not fixed — see
   *Screwing the pieces together* above for the mechanism and the ways around it.
-- The with-lid lid now models the +X sliding rail (a rounded bead that seats in
-  a wall groove; the deeper -X locking tongue was already present) and the
-  rounded top corners / softened top edge. Cross-sectioning the ground truth
-  showed the once-assumed **lock notches do not exist** — the entry edge is
-  solid at every height, module centres included — so they were not modelled.
-  The ground truth does have a transverse lip+groove near one edge that is not
-  yet ported.
+
+Previously flagged and now fixed: **the with-lid lid was retained by nothing.**
+`LID_LOCK_OFFSET` had been read as a vertical drop of the whole lid, so the plate
+sat 0.3 mm below the rim; the -X edge was a flat 3 mm tongue driven into the wall
+rather than a rail bead; and the seat was carved by subtracting the lid itself
+from the body, which machines the groove to a perfect fit and erases the very
+interference that holds the lid shut (0 mm³ against the ground truth's 4.71).
+Re-measuring the STEP showed `LID_LOCK_OFFSET` is the *radial swell* of the bead
+over the last `LID_LOCK_LENGTH`, that the +X bead runs on a continuous ledge (not
+just the three socket bosses), and that the entry edge does carry socket notches
+after all — an earlier reading had concluded it was solid at every height, and
+the area that reading attributed to rounded plan corners was those notches. The
+seat is now cut with a deliberately shrunk cutter so the lock survives, and
+`npm run smoke` asserts the interference is present *and* confined to the lock
+zone, so a future "fix" for the interpenetration cannot silently remove it again.
 
 Previously flagged and now fixed: the perimeter dovetail split used to degenerate
 at narrow/square dimensions (a zero-volume flake at `250×180`, two *empty*

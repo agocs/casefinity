@@ -193,7 +193,11 @@
 
 - Lid thickness
 - Lid clearance
-- Lid lock offset
+- Lid lock grip
+- Lid lock length
+- Lid rail radius
+- Finger lip width
+- Finger scoop length
 
 ## Module features (collapsed)
 
