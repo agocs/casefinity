@@ -77,7 +77,7 @@ invariant breaks; a couple of pre-existing fragilities are marked `XFAIL`
 | Bin, double sided | complete — open tube + central floor with concave hopper fillet + interlock ribs + pull tab + 2 chamfered lids | bbox exact; body 68.3k vs 68.2k, total (body+2 lids) 87.3k vs 87.4k (0.03%) |
 | Perimeter template | complete — two 1mm test slices of the case wall, each a closed frame (rounded floor + tapered walls + top cap), across the width and the length | bbox exact; per-slice volume within ~1% |
 | Smooth perimeter (42 grid) | complete — reuses perimeter build (42mm grid, smooth/no bumps) | bbox exact; same foot/divider simplifications as perimeter |
-| Perimeter, square corners (beta) | new design, not a port — reuses perimeter build with a squared (not rounded) cavity corner, so a bin can occupy the corner-most grid cell flush; outer wall unchanged (still fits the case's rounded corner/bottom) | no ground truth (not an original `.f3d`, no such variant exists); smoke locks self-derived bbox 350×250×110 and volume 727573 (at the 3 mm wall / 4 mm floor defaults, including the near-floor wall thickening — see "Extend FLOOR_THICK" in perimeter.ts); `npm run scaling perimeter-square-corners` guards the squared-corner invariant |
+| Perimeter, square corners (beta) | new design, not a port — reuses perimeter build with a squared (not rounded) cavity corner, so a bin can occupy the corner-most grid cell flush; outer wall unchanged (still fits the case's rounded corner/bottom) | no ground truth (not an original `.f3d`, no such variant exists); smoke locks self-derived bbox 350×250×110 and volume 757113 (at the 3 mm wall / 4 mm floor / 3 mm grid bump defaults, including the near-floor wall thickening — see "Extend FLOOR_THICK" in perimeter.ts); `npm run scaling perimeter-square-corners` guards the squared-corner invariant |
 | Solid block | complete — the Bin (no lid) body with the interior cavity left uncut (`buildBinBody(p, true)`); keeps footprint, interlock ribs/sockets and pull tab. Stock for subtracting custom tool-holder pockets in CAD | no ground truth (not an original `.f3d`); smoke locks self-derived bbox 46.3×46.3×115 and volume 220848 |
 
 ## Intentional deviations from the ground truth
@@ -95,9 +95,22 @@ printed and used standalone, not to round-trip the source file:
   original thicknesses; the shipped defaults deliberately enclose more material
   (e.g. the square-corners smoke volume is locked at the 3/4 mm defaults).
 
-The registration interface — rib/socket widths, grid pitch, bumps — is unchanged
-(it derives from `RIB_WIDTH`/`GRID_BUMP`, never `WALL_THICK`; see
-`src/models/registration.ts`), so parts built at either thickness still interlock.
+- **Grid bump width.** The originals make every rib, socket and groove 1.2 mm
+  wide (`RIB_WIDTH`, exposed as **Grid bump width** under *Module features*). At
+  that size a rib is a single extrusion wide on a 0.4 mm nozzle — fragile, and
+  the matching slot is a single-pass gap — so the generator defaults to **3 mm**.
+  The parameter is capped at 4.5 mm: a socket's backing boss is `3w + 2c` wide
+  and sits on the outermost module centre, so above ~4.87 mm it overhangs the
+  footprint and bins stop tiling at the 15 mm pitch.
+
+Wall and floor thickness do not touch the registration interface (rib/socket
+widths, grid pitch and bumps derive from `RIB_WIDTH`/`GRID_BUMP`, never
+`WALL_THICK`; see `src/models/registration.ts`), so parts built at either
+thickness still interlock. Grid bump width **is** that interface: bins and the
+liner read the one parameter, so they agree at any setting, but a part printed
+at 3 mm does not mate with one printed at the original 1.2 mm. `npm run smoke`
+therefore pins `ribWidth: 1.2` for the models whose expected volumes come from
+the STEP ground truth, so those stay true fidelity measurements.
 
 ## Fitting the perimeter to your printer
 

@@ -33,6 +33,13 @@ const { models, defaultValues } = await import("../src/models/index.ts");
 
 // Expected bounding boxes and volumes at default parameters, from the
 // APS-converted STEP ground truth (see ../ground-truth/ and diff-model.mjs).
+//
+// A `params` entry overrides the defaults for the VOLUME check only (the bbox
+// is always measured at the shipped defaults). It exists so a ground-truth
+// volume can stay a ground-truth volume where a default deliberately deviates:
+// registration.ts ships a 3 mm grid bump for printability, the originals used
+// 1.2 mm. Volumes marked self-derived carry no such pin — they track whatever
+// the shipped defaults produce.
 const expected = {
   perimeter: { x: 350, y: 250, z: 110 },
   "smooth-perimeter": { x: 350, y: 250, z: 110 },
@@ -40,15 +47,17 @@ const expected = {
   // 360 designs) — bbox matches the base perimeter (only the cavity corner
   // changes); volume is self-derived (a square cavity corner removes less
   // material than the rounded arc, so it's slightly higher than perimeter's).
-  "perimeter-square-corners": { x: 350, y: 250, z: 110, volume: 727573 },
-  "bin-no-lid": { x: 46.3, y: 46.3, z: 115, volume: 28618 },
+  // 727573 at the original 1.2 mm grid bump; +29540 at the 3 mm default, which
+  // widens the cavity-wall ribs, their backing bosses and the dividers.
+  "perimeter-square-corners": { x: 350, y: 250, z: 110, volume: 757113 },
+  "bin-no-lid": { x: 46.3, y: 46.3, z: 115, volume: 28618, params: { ribWidth: 1.2 } },
   // body + lid: plate flush with the rim, both rail beads, the lock swell, the
   // +X rail ledge, the finger scoop, the socket notches and the TOP engraving.
   // GT total 33722, i.e. 0.09% — the residual is the engraving (a different
   // font from the original) plus the pull slot's draft.
-  "bin-with-lid": { x: 46.3, y: 46.3, z: 115, volume: 33754 },
+  "bin-with-lid": { x: 46.3, y: 46.3, z: 115, volume: 33754, params: { ribWidth: 1.2 } },
   // volume = GT total (body 68178 + two lids 9596 + 9577); smoke sums all shapes.
-  "bin-double-sided": { x: 61.3, y: 61.3, z: 115, volume: 87351 },
+  "bin-double-sided": { x: 61.3, y: 61.3, z: 115, volume: 87351, params: { ribWidth: 1.2 } },
   "perimeter-template": { x: 350, y: 250, z: 110 },
   // No STEP ground truth — a filled Bin (no lid). bbox matches the bin;
   // volume is self-derived (bin footprint solid + ribs - sockets/pull slot).
@@ -97,17 +106,27 @@ for (const model of models) {
       console.log("  OK: matches ground-truth bounding box");
     }
     if (want.volume) {
-      const volume = shapes.reduce((sum, s) => sum + measureVolume(s), 0);
+      // Rebuild with the pinned params when the expected volume is measured
+      // against the ground truth at values the defaults deviate from.
+      let volumeShapes = shapes;
+      if (want.params) {
+        const pinned = model.build({ ...defaultValues(model), ...want.params });
+        volumeShapes = Array.isArray(pinned) ? pinned : [pinned];
+      }
+      const volume = volumeShapes.reduce((sum, s) => sum + measureVolume(s), 0);
       const relative = Math.abs(volume - want.volume) / want.volume;
+      const at = want.params
+        ? ` at ${Object.entries(want.params).map(([k, v]) => `${k}=${v}`).join(", ")}`
+        : "";
       if (relative > VOLUME_TOLERANCE) {
         console.error(
-          `  FAIL: volume ${volume.toFixed(0)} vs expected ${want.volume} ` +
+          `  FAIL: volume${at} ${volume.toFixed(0)} vs expected ${want.volume} ` +
             `(${(relative * 100).toFixed(2)}% off)`,
         );
         failed = true;
       } else {
         console.log(
-          `  OK: volume ${volume.toFixed(0)} within ` +
+          `  OK: volume${at} ${volume.toFixed(0)} within ` +
             `${(VOLUME_TOLERANCE * 100).toFixed(1)}% of ground truth`,
         );
       }
@@ -124,9 +143,10 @@ for (const model of models) {
 //     a seam, or a bore left half-cut, shows up as debris or a second solid);
 //   - the bbox is untouched: a pad may not stand above the rim or outside the
 //     case wall, or the frame stops fitting the case;
-//   - total volume = boss-off 719856 + 8 pads (4 seams x 2 halves): 4 clearance
+//   - total volume = boss-off 749396 + 8 pads (4 seams x 2 halves): 4 clearance
 //     halves at 455.0 and 4 pilot halves at 473.1 mm3, the difference being the
-//     narrower pilot bore;
+//     narrower pilot bore. (Boss-off was 719856 at the original 1.2 mm grid
+//     bump; the pads themselves derive from the screw size, not the bump.)
 //   - both holes are actually open: a probe cylinder just inside the pilot
 //     diameter, run through BOTH pads of one joint, must meet no material, while
 //     one just outside it must meet material on the pilot side (i.e. the pilot
@@ -165,7 +185,7 @@ console.log("perimeter with screw bosses:");
     `bbox unchanged by the bosses (${dims.map((d) => d.toFixed(2)).join(" x ")})`,
   );
 
-  const wantVolume = 723568;
+  const wantVolume = 753108;
   const relative = Math.abs(volume - wantVolume) / wantVolume;
   check(relative <= VOLUME_TOLERANCE, `volume within ${(VOLUME_TOLERANCE * 100).toFixed(1)}% of ${wantVolume}`);
 

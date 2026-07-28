@@ -18,7 +18,6 @@
 
 ## Interior features (collapsed)
 
-- Rib width
 - Side border bins
 - Front border bins
 - Dividers per long side
@@ -27,6 +26,7 @@
 
 - Grid spacing
 - Grid bump
+- Grid bump width
 
 ## Printer convenience (expanded)
 
@@ -70,7 +70,6 @@
 
 ## Interior features (collapsed)
 
-- Rib width
 - Side border bins
 - Front border bins
 - Dividers per long side
@@ -79,6 +78,7 @@
 
 - Grid spacing
 - Grid bump
+- Grid bump width
 
 ## Printer convenience (expanded)
 
@@ -122,7 +122,6 @@
 
 ## Interior features (collapsed)
 
-- Rib width
 - Side border bins
 - Front border bins
 - Dividers per long side
@@ -131,6 +130,7 @@
 
 - Grid spacing
 - Grid bump
+- Grid bump width
 
 ## Printer convenience (expanded)
 
@@ -171,7 +171,7 @@
 ## Module features (collapsed)
 
 - Grid spacing
-- Rib width
+- Grid bump width
 - Rib depth
 
 # Bin with lid
@@ -202,7 +202,7 @@
 ## Module features (collapsed)
 
 - Grid spacing
-- Rib width
+- Grid bump width
 - Rib depth
 
 # Bin (double sided)
@@ -223,7 +223,7 @@
 ## Module features (collapsed)
 
 - Grid spacing
-- Rib width
+- Grid bump width
 - Rib depth
 
 # Perimeter template
@@ -265,5 +265,5 @@
 ## Module features (collapsed)
 
 - Grid spacing
-- Rib width
+- Grid bump width
 - Rib depth

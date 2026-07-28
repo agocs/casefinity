@@ -119,9 +119,9 @@ use these values (or a documented superset).</p>
 </tr>
 <tr>
 <td><code>w</code></td>
-<td align="right">Rib width</td>
-<td align="right"><strong>1.20 mm</strong></td>
-<td align="right">1.20 mm</td>
+<td align="right">Rib / grid bump width</td>
+<td align="right"><strong>3.00 mm</strong></td>
+<td align="right">3.00 mm</td>
 <td><code>RIB_WIDTH</code></td>
 </tr>
 <tr>
@@ -165,7 +165,7 @@ use these values (or a documented superset).</p>
 of <code>1–6 mm</code> are the reasonable range) without affecting interoperability.</p>
 <p><strong>INV-1 (unified bump).</strong> <code>WALL_BUMP</code> (bins) and <code>GRID_BUMP</code> (liner) are the same
 value <code>b = 1.50 mm</code>, and every <strong>rib</strong> (male feature), on a bin or on a liner, is
-<code>w = 1.20 mm</code> wide and stands <code>b</code> proud. The female features are near-identical: a
+<code>w = 3.00 mm</code> wide and stands <code>b</code> proud. The female features are near-identical: a
 bin <em>socket</em> and a liner <em>groove</em> are both a <code>b</code>-deep slot in the wall, kept a
 <strong>blind pocket</strong> (backed by an interior boss when the wall is thin — see REQ-4.4),
 differing only in the slot&#39;s tangential clearance (see §4). All share <code>b</code> and <code>w</code>.
@@ -186,8 +186,21 @@ face, never in a mating dimension.</li>
 </ul>
 <p>Historical note: the original Fusion designs drove rib width off <code>WALL_THICK</code>
 (they were numerically equal at <code>1.20 mm</code>). <code>RIB_WIDTH</code> is a generator-introduced
-parameter that freezes that width as an interface constant; at the defaults the
-geometry is bit-identical to the originals.</p>
+parameter that freezes that width as an interface constant.</p>
+<p><strong>Deviation from the original Casefinity models.</strong> <code>w = 3.00 mm</code> is a deliberate
+change from the originals&#39; <code>1.20 mm</code>, made for printability: at <code>1.20 mm</code> a rib
+is a single extrusion wide on a <code>0.40 mm</code> nozzle, so it prints fragile and is
+prone to under-extrusion, and the matching slot is a single-pass gap that closes
+up on any over-extrusion. <code>3.00 mm</code> gives both features real cross-section. This
+is a conforming change under INV-1 (it moves both families together — they read
+one parameter), but parts built to the original <code>1.20 mm</code> do NOT interlock with
+parts built to this spec. Set <code>RIB_WIDTH = 1.20</code> to reproduce the original
+geometry; that is the value the generator&#39;s ground-truth fidelity checks use.</p>
+<p><strong>Upper bound.</strong> <code>w</code> MUST satisfy <code>3w + 2c ≤ P − 2·CLEAR</code> — the socket&#39;s backing
+boss (<code>s + 2w = 3w + 2c</code> wide, §4.1) sits on the outermost module centre, which
+leaves <code>P/2 − CLEAR</code> to the footprint edge. Above that the boss overhangs and the
+bin stops tiling at pitch: <code>w ≤ 4.87 mm</code> at the standard <code>P = 15</code>, so the
+generator caps the parameter at <code>4.50 mm</code>.</p>
 <hr>
 <h2>3. The module grid</h2>
 <p><strong>REQ-3.1.</strong> The grid is a square lattice of pitch <code>P</code>. Feature and cavity
@@ -226,12 +239,12 @@ when a bin sits on-grid.</p>
 <tbody><tr>
 <td><code>−X</code>, <code>+Y</code></td>
 <td><strong>Rib (male)</strong></td>
-<td><code>w = 1.20</code> wide, stands <code>b = 1.50</code> proud of the wall face, full height. One per module centre.</td>
+<td><code>w = 3.00</code> wide, stands <code>b = 1.50</code> proud of the wall face, full height. One per module centre.</td>
 </tr>
 <tr>
 <td><code>+X</code>, <code>−Y</code></td>
 <td><strong>Socket (female)</strong></td>
-<td>Slot cut <code>b = 1.50</code> deep into the wall, <code>s = w + 2c = 1.40</code> wide. On a thin wall (<code>t &lt; 2b</code>) the slot severs the wall and MUST be backed by an interior <strong>boss</strong> <code>s + 2w = 3.80</code> wide, <code>b</code> thick, so the cavity is not opened; on a thick wall (<code>t ≥ 2b</code>) the slot is a plain blind pocket and the boss is omitted (REQ-4.4). One per module centre.</td>
+<td>Slot cut <code>b = 1.50</code> deep into the wall, <code>s = w + 2c = 3.20</code> wide. On a thin wall (<code>t &lt; 2b</code>) the slot severs the wall and MUST be backed by an interior <strong>boss</strong> <code>s + 2w = 9.20</code> wide, <code>b</code> thick, so the cavity is not opened; on a thick wall (<code>t ≥ 2b</code>) the slot is a plain blind pocket and the boss is omitted (REQ-4.4). One per module centre.</td>
 </tr>
 </tbody></table></div>
 <p><strong>REQ-4.1.</strong> Socket slot width MUST equal <code>w + 2c</code> so a mating <code>w</code>-wide rib enters
@@ -251,12 +264,12 @@ with a bin&#39;s exterior in any of the two registrations:</p>
 <tbody><tr>
 <td><code>−Y</code>, <code>+X</code></td>
 <td><strong>Rib</strong></td>
-<td><code>w = 1.20</code> wide, <code>b = 1.50</code> proud into the cavity (plus <code>t</code> embedded back into the wall — a structural anchor, not a mating dimension). One per module.</td>
+<td><code>w = 3.00</code> wide, <code>b = 1.50</code> proud into the cavity (plus <code>t</code> embedded back into the wall — a structural anchor, not a mating dimension). One per module.</td>
 </tr>
 <tr>
 <td><code>+Y</code>, <code>−X</code></td>
 <td><strong>Groove</strong></td>
-<td>A slot <code>w = 1.20</code> wide (line-to-line with a rib), <code>b = 1.50</code> deep (from <code>0.30 mm</code> proud of the face). On a thin wall (<code>t &lt; 2b</code>), <strong>backed by a boss <code>3w = 3.60</code> wide extending <code>t + b</code> past the face</strong> into the U-channel — a blind pocket, so the cavity is not opened; on a thick wall (<code>t ≥ 2b</code>) the slot is cut straight into the flat wall (REQ-4.4). One per module.</td>
+<td>A slot <code>w = 3.00</code> wide (line-to-line with a rib), <code>b = 1.50</code> deep (from <code>0.30 mm</code> proud of the face). On a thin wall (<code>t &lt; 2b</code>), <strong>backed by a boss <code>3w = 9.00</code> wide extending <code>t + b</code> past the face</strong> into the U-channel — a blind pocket, so the cavity is not opened; on a thick wall (<code>t ≥ 2b</code>) the slot is cut straight into the flat wall (REQ-4.4). One per module.</td>
 </tr>
 </tbody></table></div>
 <p><strong>REQ-4.2.</strong> The liner groove is <code>w</code> wide — the <strong>same</strong> width as a rib, with <strong>no</strong>
@@ -281,20 +294,20 @@ groove pairs are line-to-line reliefs.</p>
 </thead>
 <tbody><tr>
 <td><strong>Locating</strong> — bin↔bin, and liner-rib↔bin-socket</td>
-<td>rib <code>w = 1.20</code></td>
-<td>socket <code>w + 2c = 1.40</code></td>
+<td>rib <code>w = 3.00</code></td>
+<td>socket <code>w + 2c = 3.20</code></td>
 <td><strong>0.10 mm / flank</strong> (0.20 across)</td>
 </tr>
 <tr>
 <td><strong>Relief</strong> — bin-rib↔liner-groove</td>
-<td>rib <code>w = 1.20</code></td>
-<td>groove <code>w = 1.20</code></td>
+<td>rib <code>w = 3.00</code></td>
+<td>groove <code>w = 3.00</code></td>
 <td><strong>line-to-line</strong> (0 nominal)</td>
 </tr>
 </tbody></table></div>
-<pre><code>   LOCATING:  rib w=1.20 ─►│ │◄─ socket s=1.40   →  0.10 mm/flank  (the clean hand-fit)
+<pre><code>   LOCATING:  rib w=3.00 ─►│ │◄─ socket s=3.20   →  0.10 mm/flank  (the clean hand-fit)
                            └─┘
-   RELIEF:    rib w=1.20 ─►│ │◄─ groove w=1.20    →  0 nominal; seats on process tolerance
+   RELIEF:    rib w=3.00 ─►│ │◄─ groove w=3.00    →  0 nominal; seats on process tolerance
                            └─┘   (a blind pocket; line-to-line width, not a locator)
 </code></pre>
 <p><strong>REQ-4.3.</strong> A part locates on its <strong>socket</strong> interfaces (the clearanced 0.10 mm/flank

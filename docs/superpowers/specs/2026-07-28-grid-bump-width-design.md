@@ -25,7 +25,10 @@ edit covers all seven:
 |---|---|---|
 | `label` | "Rib width" | "Grid bump width" |
 | `default` | 1.2 mm | 3 mm |
-| `max` | 3 mm | 6 mm |
+| `max` | 3 mm | 4.5 mm |
+
+The ceiling was designed as 6 mm and corrected to 4.5 mm after measurement — see
+*Knock-on geometry*.
 
 Fit is unaffected: sockets remain `w + 2c` and liner grooves remain line-to-line
 `w`, so registration clearance stays 0.1 mm per flank at any width.
@@ -44,8 +47,17 @@ exactly one group or `params-form.ts` renders it twice.
 Both derived from `w` by construction, not incidental:
 
 - Backing bosses widen — bin `s + 2w`: 3.8 → 9.2 mm, liner `3w`: 3.6 → 9.0 mm.
-  Both still clear the 15 mm module pitch. At the new 6 mm maximum they exceed
-  the pitch and merge into a continuous ridge; verify OCCT tolerates this.
+  Both still clear the 15 mm module pitch.
+
+  **Measured, and it changed the design.** A bin socket's boss is `3w + 2c` wide
+  and sits on the outermost module centre, leaving `P/2 − CLEAR = 7.4 mm` to the
+  footprint edge, so it overhangs above `w = 4.87` — a sweep of `bin-no-lid`
+  confirms the bbox is exactly 46.30 through `w = 4.8` and grows (46.50, 47.25,
+  48.20) at 5, 5.5 and 6. A 6 mm ceiling would therefore let the form build a
+  bin that no longer tiles at pitch, so the cap is **4.5 mm** instead: 50%
+  headroom over the default, comfortably inside the limit. Geometry is clean at
+  both ends of the range — bins, lids and the 4-piece perimeter all build as
+  single solids with no debris or empty meshes.
 - Perimeter dividers take their thickness from `ribWidth` (`perimeter.ts`), so
   they go 1.2 → 3 mm. Stronger; recorded in the README.
 
@@ -82,11 +94,14 @@ geometry the ground-truth checks reproduce.
 - `src/models/perimeter.ts`, `perimeter-square-corners.ts`,
   `smooth-perimeter.ts` — group membership
 - `scripts/smoke.mjs` — `params` override, re-baselined volumes
-- `casefinity-liner-spec.md` — `w` and derived values
+- `casefinity-liner-spec.md` — `w`, derived values, deviation and bound notes
+  (re-render with `npm run build-spec`; the HTML page is committed)
 - `all_options.md` — form layout for all seven models
 - `README.md` — intentional deviations
 
 ## Verification
 
-`npm run build`, `npm run smoke`, `npm run test:session`, plus a build of a bin
-and the perimeter at `ribWidth: 6` to confirm merged bosses do not break OCCT.
+`npm run build`, `npm run smoke`, `npm run test:session`, `npm run scaling`
+(its rib assertions derive from `p.ribWidth`, so they follow the new default),
+plus a width sweep of `bin-no-lid` and builds of the bins and the perimeter at
+both ends of the range.

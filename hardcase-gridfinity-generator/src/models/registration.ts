@@ -13,8 +13,21 @@ import type { ParamDef, ParamValues } from "./types.ts";
 /** The interface constant `w` (spec §2): the width of every male rib and the
  * basis of every female slot width. Shared by all bin variants and the liner.
  * No Fusion name: the originals drove this off WALL_THICK (numerically equal
- * at 1.2 mm); the generator freezes it as its own interface constant. */
-export const ribWidthParam: ParamDef = { key: "ribWidth", label: "Rib width", default: 1.2, unit: "mm", min: 0.6, max: 3, step: 0.1 };
+ * at 1.2 mm); the generator freezes it as its own interface constant.
+ *
+ * Deliberate deviation from the ground truth: the default is 3 mm, not the
+ * originals' 1.2 mm. At 1.2 mm a rib is a single extrusion wide on a 0.4 mm
+ * nozzle — fragile, and prone to under-extrusion; 3 mm gives it real
+ * cross-section. Bins and the liner read this one value, so they still
+ * interlock (spec INV-1) — set it back to 1.2 to reproduce the original
+ * geometry. See README "Intentional deviations from the ground truth".
+ *
+ * The 4.5 mm ceiling keeps a bin inside its nominal footprint. A socket's
+ * backing boss is `s + 2w = 3w + 2c` wide and sits on the outermost module
+ * centre, which leaves only `P/2 - CLEAR` = 7.4 mm to the footprint edge at the
+ * standard 15 mm pitch: the boss starts overhanging (and the bin stops tiling)
+ * above w = 4.87. Measured — the bbox is exact at 4.8 and grows at 5. */
+export const ribWidthParam: ParamDef = { key: "ribWidth", label: "Grid bump width", default: 3, unit: "mm", min: 0.6, max: 4.5, step: 0.1 };
 
 /** x/y offsets of module centres, e.g. 3 modules @ 15 → [-15, 0, 15]. Both
  * families centre their features here (REQ-3.4), which is why bin ribs and

@@ -44,7 +44,7 @@ use these values (or a documented superset).
 | Symbol | Name | Standard | Gridfinity liner | Source param |
 |---|---:|---:|---:|---|
 | `P` | Module pitch | **15.00 mm** | **42.00 mm** | `GRID_SPACING` |
-| `w` | Rib width | **1.20 mm** | 1.20 mm | `RIB_WIDTH` |
+| `w` | Rib / grid bump width | **3.00 mm** | 3.00 mm | `RIB_WIDTH` |
 | `b` | Bump height (proud/deep) | **1.50 mm** | 1.50 mm | `WALL_BUMP` = `GRID_BUMP` |
 | `c` | Registration clearance | **0.10 mm** | 0.10 mm | `CLEAR` = `LID_CLEAR` |
 | `t` | Wall thickness *(structural, free)* | default 1.20 mm | default 1.20 mm | `WALL_THICK` |
@@ -57,7 +57,7 @@ of `1–6 mm` are the reasonable range) without affecting interoperability.
 
 **INV-1 (unified bump).** `WALL_BUMP` (bins) and `GRID_BUMP` (liner) are the same
 value `b = 1.50 mm`, and every **rib** (male feature), on a bin or on a liner, is
-`w = 1.20 mm` wide and stands `b` proud. The female features are near-identical: a
+`w = 3.00 mm` wide and stands `b` proud. The female features are near-identical: a
 bin *socket* and a liner *groove* are both a `b`-deep slot in the wall, kept a
 **blind pocket** (backed by an interior boss when the wall is thin — see REQ-4.4),
 differing only in the slot's tangential clearance (see §4). All share `b` and `w`.
@@ -79,8 +79,23 @@ or the liner's cavity size (INV-7). This is realized by construction:
 
 Historical note: the original Fusion designs drove rib width off `WALL_THICK`
 (they were numerically equal at `1.20 mm`). `RIB_WIDTH` is a generator-introduced
-parameter that freezes that width as an interface constant; at the defaults the
-geometry is bit-identical to the originals.
+parameter that freezes that width as an interface constant.
+
+**Deviation from the original Casefinity models.** `w = 3.00 mm` is a deliberate
+change from the originals' `1.20 mm`, made for printability: at `1.20 mm` a rib
+is a single extrusion wide on a `0.40 mm` nozzle, so it prints fragile and is
+prone to under-extrusion, and the matching slot is a single-pass gap that closes
+up on any over-extrusion. `3.00 mm` gives both features real cross-section. This
+is a conforming change under INV-1 (it moves both families together — they read
+one parameter), but parts built to the original `1.20 mm` do NOT interlock with
+parts built to this spec. Set `RIB_WIDTH = 1.20` to reproduce the original
+geometry; that is the value the generator's ground-truth fidelity checks use.
+
+**Upper bound.** `w` MUST satisfy `3w + 2c ≤ P − 2·CLEAR` — the socket's backing
+boss (`s + 2w = 3w + 2c` wide, §4.1) sits on the outermost module centre, which
+leaves `P/2 − CLEAR` to the footprint edge. Above that the boss overhangs and the
+bin stops tiling at pitch: `w ≤ 4.87 mm` at the standard `P = 15`, so the
+generator caps the parameter at `4.50 mm`.
 
 ---
 
@@ -127,8 +142,8 @@ A bin carries a **complementary** feature set so it registers "either way round"
 
 | Face | Feature | Geometry |
 |---|---|---|
-| `−X`, `+Y` | **Rib (male)** | `w = 1.20` wide, stands `b = 1.50` proud of the wall face, full height. One per module centre. |
-| `+X`, `−Y` | **Socket (female)** | Slot cut `b = 1.50` deep into the wall, `s = w + 2c = 1.40` wide. On a thin wall (`t < 2b`) the slot severs the wall and MUST be backed by an interior **boss** `s + 2w = 3.80` wide, `b` thick, so the cavity is not opened; on a thick wall (`t ≥ 2b`) the slot is a plain blind pocket and the boss is omitted (REQ-4.4). One per module centre. |
+| `−X`, `+Y` | **Rib (male)** | `w = 3.00` wide, stands `b = 1.50` proud of the wall face, full height. One per module centre. |
+| `+X`, `−Y` | **Socket (female)** | Slot cut `b = 1.50` deep into the wall, `s = w + 2c = 3.20` wide. On a thin wall (`t < 2b`) the slot severs the wall and MUST be backed by an interior **boss** `s + 2w = 9.20` wide, `b` thick, so the cavity is not opened; on a thick wall (`t ≥ 2b`) the slot is a plain blind pocket and the boss is omitted (REQ-4.4). One per module centre. |
 
 **REQ-4.1.** Socket slot width MUST equal `w + 2c` so a mating `w`-wide rib enters
 with exactly `c = 0.10 mm` clearance **per flank**. Neither dimension involves
@@ -141,8 +156,8 @@ with a bin's exterior in any of the two registrations:
 
 | Liner wall | Feature | Geometry |
 |---|---|---|
-| `−Y`, `+X` | **Rib** | `w = 1.20` wide, `b = 1.50` proud into the cavity (plus `t` embedded back into the wall — a structural anchor, not a mating dimension). One per module. |
-| `+Y`, `−X` | **Groove** | A slot `w = 1.20` wide (line-to-line with a rib), `b = 1.50` deep (from `0.30 mm` proud of the face). On a thin wall (`t < 2b`), **backed by a boss `3w = 3.60` wide extending `t + b` past the face** into the U-channel — a blind pocket, so the cavity is not opened; on a thick wall (`t ≥ 2b`) the slot is cut straight into the flat wall (REQ-4.4). One per module. |
+| `−Y`, `+X` | **Rib** | `w = 3.00` wide, `b = 1.50` proud into the cavity (plus `t` embedded back into the wall — a structural anchor, not a mating dimension). One per module. |
+| `+Y`, `−X` | **Groove** | A slot `w = 3.00` wide (line-to-line with a rib), `b = 1.50` deep (from `0.30 mm` proud of the face). On a thin wall (`t < 2b`), **backed by a boss `3w = 9.00` wide extending `t + b` past the face** into the U-channel — a blind pocket, so the cavity is not opened; on a thick wall (`t ≥ 2b`) the slot is cut straight into the flat wall (REQ-4.4). One per module. |
 
 **REQ-4.2.** The liner groove is `w` wide — the **same** width as a rib, with **no**
 added tangential clearance (line-to-line). Like the bin socket, the groove MUST be
@@ -160,13 +175,13 @@ groove pairs are line-to-line reliefs.
 
 | Interface | Male | Female | Tangential fit |
 |---|---|---|---|
-| **Locating** — bin↔bin, and liner-rib↔bin-socket | rib `w = 1.20` | socket `w + 2c = 1.40` | **0.10 mm / flank** (0.20 across) |
-| **Relief** — bin-rib↔liner-groove | rib `w = 1.20` | groove `w = 1.20` | **line-to-line** (0 nominal) |
+| **Locating** — bin↔bin, and liner-rib↔bin-socket | rib `w = 3.00` | socket `w + 2c = 3.20` | **0.10 mm / flank** (0.20 across) |
+| **Relief** — bin-rib↔liner-groove | rib `w = 3.00` | groove `w = 3.00` | **line-to-line** (0 nominal) |
 
 ```
-   LOCATING:  rib w=1.20 ─►│ │◄─ socket s=1.40   →  0.10 mm/flank  (the clean hand-fit)
+   LOCATING:  rib w=3.00 ─►│ │◄─ socket s=3.20   →  0.10 mm/flank  (the clean hand-fit)
                            └─┘
-   RELIEF:    rib w=1.20 ─►│ │◄─ groove w=1.20    →  0 nominal; seats on process tolerance
+   RELIEF:    rib w=3.00 ─►│ │◄─ groove w=3.00    →  0 nominal; seats on process tolerance
                            └─┘   (a blind pocket; line-to-line width, not a locator)
 ```
 

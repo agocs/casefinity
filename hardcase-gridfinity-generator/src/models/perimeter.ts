@@ -739,6 +739,10 @@ function splitPieces(frame: Shape3D, p: ParamValues): Shape3D[] {
  * registration.ts), so parts still interlock at any thickness. Set them back to
  * 1.2 / 1 mm to reproduce the original geometry. See README "Intentional
  * deviations from the ground truth".
+ *
+ * RIB_WIDTH (the "Grid bump width" knob, shared with the bins) deviates from
+ * the originals too — 3 mm rather than 1.2 mm, for printability. That one IS an
+ * interface dimension; see the note on `ribWidthParam` in registration.ts.
  */
 export const perimeterParams: ParamDef[] = [
     { key: "overallLength", fusionName: "OVERALL_LENGTH", label: "Case length", default: 350, unit: "mm", min: 60, max: 900, step: 1 },
@@ -833,8 +837,8 @@ export const perimeter: ModelDef = {
   groups: [
     { title: "Basic dimensions", collapsed: false, keys: ["overallLength", "overallWidth", "overallHeight", "wallThick", "footThick"] },
     { title: "Advanced dimensions", collapsed: true, keys: ["bottomCornerRadius", "wallCornerRadius", "sideWallTaper", "frontWallTaper", "clearance"] },
-    { title: "Interior features", collapsed: true, keys: ["ribWidth", "sideBoarderBinAdd", "frontBoarderBinAdd", "dividers"] },
-    { title: "Module features", collapsed: true, keys: ["gridSpacing", "gridBump"] },
+    { title: "Interior features", collapsed: true, keys: ["sideBoarderBinAdd", "frontBoarderBinAdd", "dividers"] },
+    { title: "Module features", collapsed: true, keys: ["gridSpacing", "gridBump", "ribWidth"] },
     { title: "Printer convenience", collapsed: false, keys: ["split", "bedWidth", "bedDepth", "bedMargin", "dovetailWidth", "dovetailDepth", "dovetailAngle", "dovetailClear"] },
     { title: "Screw bosses", collapsed: true, keys: ["bosses", "bossScrewDia", "bossHoleFactor", "bossLen", "bossWall"] },
   ],
