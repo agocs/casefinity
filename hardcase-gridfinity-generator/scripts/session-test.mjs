@@ -117,6 +117,46 @@ test("onBusyChange does not flicker across a preemption", async () => {
   assert.deepEqual(events, [true, false]);
 });
 
+test("a build during an export defers instead of killing the export", async () => {
+  const { spawn, spawned } = makeSpawn();
+  const session = new CadSession(spawn);
+
+  const exported = session.exportModel("stl", "perimeter", { n: 1 });
+  const built = session.build("perimeter", { n: 2 });
+
+  assert.equal(spawned.length, 1, "an export must never be preempted");
+  assert.equal(spawned[0].terminated, false);
+  assert.equal(spawned[0].calls.length, 1, "the build must not be dispatched yet");
+  assert.equal(session.exporting, true);
+
+  spawned[0].calls[0].resolve("BLOB");
+  assert.equal(await exported, "BLOB");
+
+  assert.equal(spawned[0].calls.length, 2, "the deferred build runs once the export lands");
+  assert.equal(spawned[0].calls[1].method, "mesh");
+  spawned[0].calls[1].resolve(["DEFERRED"]);
+  assert.deepEqual(await built, ["DEFERRED"]);
+});
+
+test("a second build during an export replaces the deferred one", async () => {
+  const { spawn, spawned } = makeSpawn();
+  const session = new CadSession(spawn);
+
+  const exported = session.exportModel("step", "perimeter", { n: 1 });
+  const first = session.build("perimeter", { n: 2 });
+  const second = session.build("perimeter", { n: 3 });
+
+  await assert.rejects(first, (e) => e instanceof Cancelled);
+  assert.equal(spawned[0].calls.length, 1, "deferred builds must not accumulate");
+
+  spawned[0].calls[0].resolve("BLOB");
+  await exported;
+
+  assert.equal(spawned[0].calls[1].values.n, 3, "the newest deferred build wins");
+  spawned[0].calls[1].resolve(["SECOND"]);
+  assert.deepEqual(await second, ["SECOND"]);
+});
+
 let failed = 0;
 for (const { name, fn } of tests) {
   try {

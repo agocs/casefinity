@@ -37,6 +37,19 @@ interface Job {
   reject: (reason: unknown) => void;
 }
 
+interface Deferred {
+  modelId: string;
+  values: ParamValues;
+  resolve: (meshes: ShapeMeshes[]) => void;
+  reject: (reason: unknown) => void;
+}
+
+const EXPORT_METHOD = {
+  stl: "exportSTL",
+  step: "exportSTEP",
+  "3mf": "export3MF",
+} as const;
+
 /**
  * Serializes work on a single CAD worker so that a newer build preempts an
  * older one instead of queueing behind it.
@@ -50,6 +63,7 @@ export class CadSession {
   #spawn: () => WorkerHandle;
   #handle: WorkerHandle;
   #job: Job | null = null;
+  #deferred: Deferred | null = null;
   #wasBusy = false;
 
   /** Fires only on real edge transitions, never mid-preemption. */
@@ -61,7 +75,7 @@ export class CadSession {
   }
 
   get busy(): boolean {
-    return this.#job !== null;
+    return this.#job !== null || this.#deferred !== null;
   }
 
   get exporting(): boolean {
@@ -69,8 +83,43 @@ export class CadSession {
   }
 
   build(modelId: string, values: ParamValues): Promise<ShapeMeshes[]> {
+    if (this.exporting) return this.#defer(modelId, values);
     if (this.#job) this.#kill();
     return this.#run("build", (api) => api.mesh(modelId, values));
+  }
+
+  /**
+   * An export is a deliberate click that produces a file, so it is never
+   * cancelled. A rebuild requested mid-export waits here instead — at most one,
+   * newest wins, so the worker queue never grows.
+   */
+  #defer(modelId: string, values: ParamValues): Promise<ShapeMeshes[]> {
+    this.#deferred?.reject(new Cancelled());
+    this.#deferred = null;
+    return new Promise<ShapeMeshes[]>((resolve, reject) => {
+      this.#deferred = { modelId, values, resolve, reject };
+      this.#sync();
+    });
+  }
+
+  /** An explicit click outranks a speculative rebuild, so kill one if running. */
+  exportModel(
+    kind: ExportKind,
+    modelId: string,
+    values: ParamValues,
+  ): Promise<Blob> {
+    if (this.#job) this.#kill();
+    return this.#run("export", (api) => api[EXPORT_METHOD[kind]](modelId, values));
+  }
+
+  /** Release the parked build, if any, now that the worker is free. */
+  #drain(): void {
+    const next = this.#deferred;
+    this.#deferred = null;
+    if (next) {
+      this.build(next.modelId, next.values).then(next.resolve, next.reject);
+    }
+    this.#sync();
   }
 
   /**
@@ -101,13 +150,13 @@ export class CadSession {
           if (this.#job !== job) return;
           this.#job = null;
           resolve(value);
-          this.#sync();
+          this.#drain();
         },
         (error) => {
           if (this.#job !== job) return;
           this.#job = null;
           reject(error);
-          this.#sync();
+          this.#drain();
         },
       );
     });
