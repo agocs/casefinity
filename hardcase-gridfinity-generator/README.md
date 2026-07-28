@@ -12,6 +12,7 @@ npm install
 npm run dev      # dev server
 npm run build    # type-check + production build (dist/)
 npm run smoke    # build all models in Node, verify against ground truth
+npm run test:session # CadSession concurrency unit test (no OCCT, ~1 s)
 npm run check-3mf # verify .3mf export: package structure + watertight, outward-wound meshes
 npm run scaling  # parametric invariant harness (see below)
 ```
@@ -51,6 +52,12 @@ invariant breaks; a couple of pre-existing fragilities are marked `XFAIL`
 - `src/three-mf.ts` — dependency-light 3MF writer (meshes → OPC ZIP via
   `fflate`); one `<object>` per shape so multi-part models split into parts.
 - `src/viewer.ts` — three.js viewport (Z-up, orbit controls).
+- `src/cad-session.ts` — owns the CAD worker and serializes work on it: a newer
+  build terminates and respawns the worker rather than queueing behind the
+  in-flight one (OCCT builds are synchronous WASM, so `terminate()` is the only
+  way to stop one). Exports are never cancelled; a build requested mid-export
+  waits in a single latest-wins slot. Takes an injected spawn function, so it
+  holds no browser globals and is unit-tested in Node.
 - `src/main.ts` — UI wiring: model selector, debounced parameter form,
   export buttons.
 - `scripts/smoke.mjs` — builds every model headlessly in Node and checks

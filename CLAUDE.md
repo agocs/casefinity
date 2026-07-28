@@ -42,6 +42,8 @@ All in `hardcase-gridfinity-generator/`. Node is installed via Homebrew; if
 - `npm run smoke` — the test suite: builds every registered model headlessly in
   Node with the real OCCT kernel and asserts bounding boxes and volumes against
   ground truth (expected values table at the top of `scripts/smoke.mjs`)
+- `npm run test:session` — unit-tests the `CadSession` build/export concurrency
+  state machine with a fake worker (no OCCT; runs in ~1 s)
 
 Reverse-engineering/verification scripts (Node, in `scripts/`):
 
@@ -67,6 +69,12 @@ Reverse-engineering/verification scripts (Node, in `scripts/`):
   in sync. A `key` listed in a group must exist in `params` and appear in only
   one group, or `params-form.ts` renders it twice / drops it to the top. Bins
   share `bin-common.ts` (`buildBinBody`, `binParams`, `box`, `moduleCenters`).
+- `src/cad-session.ts` — worker lifecycle + build concurrency. A new build
+  preempts the in-flight one by terminating and respawning the worker (OCCT
+  builds are synchronous WASM with no cancellation point); exports are never
+  preempted, and a build requested during one parks in a single latest-wins
+  slot. The worker arrives via an injected spawn function, keeping the module
+  browser-global-free and testable in Node.
 - `src/worker.ts` — comlink-exposed web worker; loads the OCCT WASM once
   (`replicad-opencascadejs`), builds/meshes models, exports STL/STEP blobs.
   `src/main.ts` wires the model selector, debounced param form (`params-form.ts`),
