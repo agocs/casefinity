@@ -6,10 +6,8 @@ import type { ParamValues } from "./models";
 import type { CadWorkerApi } from "./worker";
 import { Viewer } from "./viewer";
 import { renderParamsForm } from "./params-form";
-
-const worker = wrap<CadWorkerApi>(
-  new Worker(new URL("./worker.ts", import.meta.url), { type: "module" }),
-) as Remote<CadWorkerApi>;
+import { CadSession, Cancelled } from "./cad-session.ts";
+import type { ExportKind, WorkerHandle } from "./cad-session.ts";
 
 const select = document.getElementById("model-select") as HTMLSelectElement;
 const description = document.getElementById("model-description")!;
@@ -22,9 +20,29 @@ const exportButtons = [stlButton, stepButton, threeMfButton];
 const viewer = new Viewer(document.getElementById("viewport")!);
 const spinner = document.getElementById("spinner")!;
 
+/** Spawn a real OCCT worker. Called again each time a build is preempted. */
+function spawnWorker(): WorkerHandle {
+  const worker = new Worker(new URL("./worker.ts", import.meta.url), {
+    type: "module",
+  });
+  return {
+    api: wrap<CadWorkerApi>(worker) as Remote<CadWorkerApi>,
+    terminate: () => worker.terminate(),
+  };
+}
+
+const session = new CadSession(spawnWorker);
+
+// One sink for every piece of busy-state UI: the spinner and the export
+// buttons. index.html already ships the idle state (no `active` class, no
+// `disabled`), which is what the session assumes at construction.
+session.onBusyChange = (busy) => {
+  spinner.classList.toggle("active", busy);
+  for (const b of exportButtons) b.disabled = busy;
+};
+
 let currentModelId = models[0].id;
 let currentValues: ParamValues = defaultValues(models[0]);
-let buildToken = 0;
 let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 // Wait this long after the last parameter edit before rebuilding, so dragging a
 // slider or typing a value doesn't kick off a (potentially multi-second) build
@@ -37,20 +55,16 @@ function setStatus(text: string, isError = false): void {
 }
 
 async function rebuild(): Promise<void> {
-  const token = ++buildToken;
-  spinner.classList.add("active");
-  setStatus("building…");
+  setStatus(session.exporting ? "queued behind export…" : "building…");
   const started = performance.now();
   try {
-    const meshes = await worker.mesh(currentModelId, currentValues);
-    if (token !== buildToken) return; // superseded by a newer request
+    const meshes = await session.build(currentModelId, currentValues);
     viewer.update(meshes);
     setStatus(`built in ${Math.round(performance.now() - started)} ms`);
   } catch (error) {
-    if (token !== buildToken) return;
+    // A newer build has already taken over the status line and the spinner.
+    if (error instanceof Cancelled) return;
     setStatus(`build failed: ${error instanceof Error ? error.message : error}`, true);
-  } finally {
-    if (token === buildToken) spinner.classList.remove("active");
   }
 }
 
@@ -80,22 +94,14 @@ function download(blob: Blob, filename: string): void {
   URL.revokeObjectURL(link.href);
 }
 
-async function exportModel(kind: "stl" | "step" | "3mf"): Promise<void> {
-  for (const b of exportButtons) b.disabled = true;
+async function exportModel(kind: ExportKind): Promise<void> {
   setStatus(`exporting ${kind.toUpperCase()}…`);
   try {
-    const blob =
-      kind === "stl"
-        ? await worker.exportSTL(currentModelId, currentValues)
-        : kind === "step"
-          ? await worker.exportSTEP(currentModelId, currentValues)
-          : await worker.export3MF(currentModelId, currentValues);
+    const blob = await session.exportModel(kind, currentModelId, currentValues);
     download(blob, `${currentModelId}.${kind}`);
     setStatus(`${kind.toUpperCase()} exported`);
   } catch (error) {
     setStatus(`export failed: ${error instanceof Error ? error.message : error}`, true);
-  } finally {
-    for (const b of exportButtons) b.disabled = false;
   }
 }
 
