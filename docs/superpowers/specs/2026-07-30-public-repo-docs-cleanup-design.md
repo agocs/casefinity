@@ -157,3 +157,17 @@ The docs move is only correct if nothing that reads these paths breaks:
   remains available if the owner later wants it.
 - Licensing of the underlying designs is still unresolved with the creator. The
   README states the boundary rather than resolving it.
+
+## Addendum, 2026-07-30 (same day)
+
+Both residuals above are **resolved**, and two premises of this spec were wrong:
+
+- Casefinity has the Unemployed Architect's **written permission** to reimplement
+  his designs. Licensing is not unresolved, and the docs no longer say it is.
+- The `.f3d` sources are **not paywalled**, so keeping them in git history is not
+  a concern. The history purge is formally declined, not merely deferred.
+
+The files stay untracked, but for repo-hygiene reasons only — nothing in the
+build reads them and they are large opaque binaries. The `.gitignore` comment,
+`LICENSE` trailer, README "Design provenance", and `CLAUDE.md` were all corrected
+to say so, and the live URL **casefinity.net** was added to the README.

@@ -25,10 +25,10 @@ SOFTWARE.
 This license covers the source code and documentation in this repository.
 
 It does NOT cover the underlying "Gridfinity for Hardcases" physical designs,
-which are the work of the Unemployed Architect and are distributed through his
-Patreon. The model code here is an independent reimplementation of those
-designs' geometry; models you generate with it are subject to the original
-designer's terms, not this license. See "Design provenance" in README.md.
+which are the work of the Unemployed Architect. The model code here is an
+independent reimplementation of those designs' geometry, published with his
+written permission; that permission covers this reimplementation and does not
+place his designs under this license. See "Design provenance" in README.md.
 
 The bundled Liberation Sans font is licensed separately under the SIL Open Font
 License — see hardcase-gridfinity-generator/public/LICENSE.LiberationSans.txt.

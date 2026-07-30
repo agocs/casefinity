@@ -1,5 +1,7 @@
 # Casefinity
 
+**[casefinity.net](https://casefinity.net)**
+
 A browser-based parametric model generator for the **"Gridfinity for Hardcases"**
 system — 3D-printable inserts that turn a hard case into organized tool and parts
 storage.
@@ -92,27 +94,29 @@ ground truth, needs the sources.
 ## Design provenance
 
 **The "Gridfinity for Hardcases" designs are not mine.** They are the work of the
-**Unemployed Architect**, who distributes them through
-[Patreon](https://www.patreon.com/cw/UnemployedArchitect) — there is also a
-[video introduction](https://www.youtube.com/watch?v=YSqm821ekR4) and the
-[original post](https://www.patreon.com/UnemployedArchitect/posts/gridfinity-for-162320687).
+**Unemployed Architect** — see his
+[video introduction](https://www.youtube.com/watch?v=YSqm821ekR4), the
+[original post](https://www.patreon.com/UnemployedArchitect/posts/gridfinity-for-162320687),
+and his [Patreon](https://www.patreon.com/cw/UnemployedArchitect).
 **If you find this generator useful, support him.**
+
+Casefinity is published **with the Unemployed Architect's written permission** to
+reimplement his designs.
 
 This repository is an independent reimplementation of those designs' *geometry* as
 parametric code. The original `.f3d` files are Fusion 360 archives that no open
 tooling can parse, so nothing here is converted from them; the models were
 reconstructed by measuring STEP exports and reading out the recoverable user
-parameters. The `.f3d` sources themselves are deliberately not redistributed here.
+parameters. The `.f3d` sources are not tracked here — nothing in the build reads
+them, and they are the creator's to distribute.
 
 What that means in practice:
 
 - **The MIT license covers the code and documentation in this repository** — the
   replicad model implementations, the app, and the tooling.
-- **It does not cover the underlying physical designs.** Models you generate are
-  subject to the original designer's terms, not this license.
-- Licensing of the designs for a public generator has **not** been formally
-  resolved with the creator. This is stated plainly rather than resolved. If you
-  are the creator and want something changed here, please get in touch.
+- **It does not cover the underlying physical designs**, which remain the
+  Unemployed Architect's. Permission was granted for this reimplementation; it is
+  not permission for you to relicense his designs.
 
 Some model *defaults* deliberately differ from the originals for printability —
 a heavier wall and floor, and a wider grid bump. These are documented in
