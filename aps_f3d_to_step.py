@@ -5,7 +5,8 @@ Usage:
     APS_CLIENT_ID=xxx APS_CLIENT_SECRET=yyy python3 aps_f3d_to_step.py [files...]
 
 With no arguments, converts every */*.f3d under the script's directory.
-STEP files are written next to this script in ./step_output/.
+STEP files are written to ./hardcase-gridfinity-generator/ground-truth/, the
+tracked ground truth the porting tests assert against.
 
 Requires an APS app (https://aps.autodesk.com/ -> Applications -> Create) with
 the Data Management and Model Derivative APIs enabled. Stdlib only.
@@ -24,7 +25,7 @@ import urllib.request
 
 BASE = "https://developer.api.autodesk.com"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-OUT_DIR = os.path.join(SCRIPT_DIR, "step_output")
+OUT_DIR = os.path.join(SCRIPT_DIR, "hardcase-gridfinity-generator", "ground-truth")
 POLL_INTERVAL = 10
 POLL_TIMEOUT = 15 * 60
 

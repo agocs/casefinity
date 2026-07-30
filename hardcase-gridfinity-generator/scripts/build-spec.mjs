@@ -1,4 +1,4 @@
-// Render the Casefinity spec (../../casefinity-liner-spec.md, at the workspace
+// Render the Casefinity spec (../../docs/casefinity-spec.md, at the workspace
 // root) to a self-contained, theme-aware HTML page served by the app at
 // /casefinity-spec.html. Re-run after editing the spec: `npm run build-spec`.
 // The output is committed, so a plain `npm run build` does not need the source.
@@ -6,7 +6,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { marked } from "marked";
 
-const specUrl = new URL("../../casefinity-liner-spec.md", import.meta.url);
+const specUrl = new URL("../../docs/casefinity-spec.md", import.meta.url);
 const outUrl = new URL("../public/casefinity-spec.html", import.meta.url);
 
 let md;
