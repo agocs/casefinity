@@ -56,7 +56,7 @@ specifies the module grid, the interlock/registration features, the fit and
 clearance scheme, and the tolerance stack-up behaviour so that independently
 designed parts interoperate.</p>
 <p>This is a <em>reference</em> specification: every dimension traces to a named Fusion 360
-user parameter (see <code>f3d-extracted-parameters.md</code>) as realized in the generator
+user parameter (see <code>f3d-parameters.md</code>) as realized in the generator
 (<code>hardcase-gridfinity-generator/src/models/</code>). Where the spec and the code
 disagree, the code is authoritative and this document is a bug.</p>
 <p>Requirement language: <strong>MUST / SHOULD / MAY</strong> per RFC 2119.</p>
@@ -654,7 +654,7 @@ knob); structural parameters (<code>WALL_THICK</code>, <code>FLOOR_THICK</code>,
 <td><code>SIDE/FRONT_BOARDER_FACTOR</code></td>
 </tr>
 </tbody></table></div>
-<p>Provenance of every default: <code>f3d-extracted-parameters.md</code>. Geometry realization:
+<p>Provenance of every default: <code>f3d-parameters.md</code>. Geometry realization:
 <code>hardcase-gridfinity-generator/src/models/bin-common.ts</code> (bins) and
 <code>.../perimeter.ts</code> (liner); the shared registration interface — rib/slot/boss
 widths, module centring, the REQ-4.4 boss rule — lives in one place,

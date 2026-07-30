@@ -11,19 +11,42 @@ the models are being re-implemented as replicad code and verified against STEP
 exports:
 
 - `1. Template/`, `2. Perimeter/`, `3. Bins/` — original `.f3d` files (ZIP
-  containers, proprietary binary payload; treat as read-only reference)
-- `f3d-extracted-parameters.md` — user parameters (names, defaults, driving
+  containers, proprietary binary payload; treat as read-only reference).
+  **Gitignored and never committed** — they are the creator's Patreon-distributed
+  designs. Present on the author's disk only; a fresh clone will not have them.
+- `docs/f3d-parameters.md` — user parameters (names, defaults, driving
   expressions) recovered from the `.f3d` binaries; the authoritative reference
   for parameter provenance
-- `step_output/` — STEP ground truth converted from the `.f3d` files via the
-  APS Model Derivative API (`aps_f3d_to_step.py`; needs `APS_CLIENT_ID` /
-  `APS_CLIENT_SECRET` env vars, uploads are transient)
+- `hardcase-gridfinity-generator/ground-truth/` — STEP ground truth converted
+  from the `.f3d` files via the APS Model Derivative API (`aps_f3d_to_step.py`;
+  needs `APS_CLIENT_ID` / `APS_CLIENT_SECRET` env vars, uploads are transient).
+  This is the single tracked copy and what the tests measure against.
 - `hardcase-gridfinity-generator/` — the actual codebase: Vite + TypeScript
-  static site running replicad (OCCT WASM) in a web worker; `ground-truth/`
-  inside it is a copy of `step_output/`
+  static site running replicad (OCCT WASM) in a web worker
+- `docs/` — all prose documentation; see the doc map below
 
-The designs belong to the Hardcase Gridfinity creator; license for publishing a
-public generator is unresolved (see README).
+The designs belong to the Hardcase Gridfinity creator (the Unemployed Architect);
+license for publishing a public generator is unresolved. The root README's
+"Design provenance" section states the boundary — keep it accurate.
+
+## Documentation map
+
+Keep these in sync when behavior changes; don't create new top-level docs.
+
+- root `README.md` — the public front door: what Casefinity is, quick start,
+  repo layout, design provenance, contributing
+- `hardcase-gridfinity-generator/README.md` — developer guide: commands,
+  architecture, analysis tooling, conventions, deployment
+- `docs/models.md` — per-model catalog: fidelity vs ground truth, **form
+  layout for every model**, intentional deviations, known limitations
+- `docs/printing.md` — user-facing print guide: export formats, clearances,
+  bed fitting, screw bosses
+- `docs/reverse-engineering.md` — porting workflow, OCCT traps, recovered
+  geometry findings per model
+- `docs/casefinity-spec.md` — the proposed interop spec; rendered to
+  `public/casefinity-spec.html` by `npm run build-spec` (output is committed)
+- `docs/case-dimensions.md` — measured hard case interiors
+- `docs/superpowers/{specs,plans}/` — historical design docs, append-only
 
 ## Git workflow
 
@@ -33,9 +56,11 @@ push `main` — don't develop directly on `main`.
 
 ## Commands
 
-All in `hardcase-gridfinity-generator/`. Node is installed via Homebrew; if
-`node`/`npm` are not on PATH, use `/home/linuxbrew/.linuxbrew/bin/node` (and
-`.../npm`) directly.
+All in `hardcase-gridfinity-generator/`. Needs Node 22.18+ / 23.6+ (the scripts
+import the `.ts` model sources directly and rely on built-in type stripping).
+Node is usually on PATH as `/usr/bin/node`; on some of the author's machines it
+is installed via Homebrew instead, at `/home/linuxbrew/.linuxbrew/bin/node` —
+check both before concluding it is missing.
 
 - `npm run dev` — dev server
 - `npm run build` — type-check (tsc) + production build
@@ -62,10 +87,10 @@ Reverse-engineering/verification scripts (Node, in `scripts/`):
 - `src/models/` — each model is a `ModelDef` (see `types.ts`): a parameter
   schema plus a `build()` returning replicad `Shape3D`(s). The schema drives the
   auto-generated UI form; each param's `fusionName` ties back to the original
-  Fusion 360 user parameter in `f3d-extracted-parameters.md`. A `ModelDef` may
+  Fusion 360 user parameter in `docs/f3d-parameters.md`. A `ModelDef` may
   also declare optional `groups` (collapsible form sections referencing param
   `key`s, rendered by `params-form.ts`) and `presets` (a dropdown that fills a
-  set of values); `all_options.md` documents each model's form layout — keep it
+  set of values); `docs/models.md` documents each model's form layout — keep it
   in sync. A `key` listed in a group must exist in `params` and appear in only
   one group, or `params-form.ts` renders it twice / drops it to the top. Bins
   share `bin-common.ts` (`buildBinBody`, `binParams`, `box`, `moduleCenters`).
@@ -82,8 +107,9 @@ Reverse-engineering/verification scripts (Node, in `scripts/`):
 - `scripts/occt-utils.mjs` — shared Node bootstrap for the OCCT kernel plus
   compound-aware STEP import and slab/occupancy helpers. All analysis scripts
   build on it; `render-lib.mjs` holds the pure-JS PNG depth renderer.
-- Porting status and the step-by-step reverse-engineering workflow live in the
-  README ("Porting status", "Reverse-engineering workflow").
+- Porting status lives in `docs/models.md`; the step-by-step
+  reverse-engineering workflow and the recovered geometry findings live in
+  `docs/reverse-engineering.md`.
 
 ## Conventions and gotchas
 
@@ -111,12 +137,12 @@ Reverse-engineering/verification scripts (Node, in `scripts/`):
   `diff-model.mjs`, then add expected bbox/volume to `smoke.mjs`. Achieved
   fidelity so far: bin-no-lid 0.02%, bin-double-sided 0.3% volume error;
   all 8 models pass smoke. Document any deliberate gaps (like the with-lid
-  lid seat) in the model file's doc comment and the README table.
+  lid seat) in the model file's doc comment and the `docs/models.md` table.
 - Model *defaults* may intentionally deviate from the Fusion originals for
   printability — the perimeter ships a 3 mm wall / 4 mm floor vs the source's
-  1.2 mm / 1 mm liner (see `perimeter.ts` and README "Intentional deviations").
-  Ground-truth fidelity is asserted at the original thicknesses; `smoke.mjs`
-  checks the perimeter by bbox only (no volume), so a default thickness change
-  does not regress it. Record such deviations in the model doc comment and the
-  README, and if the default drives a self-derived smoke volume (e.g.
-  perimeter-square-corners) update that expected value too.
+  1.2 mm / 1 mm liner (see `perimeter.ts` and `docs/models.md` "Intentional
+  deviations"). Ground-truth fidelity is asserted at the original thicknesses;
+  `smoke.mjs` checks the perimeter by bbox only (no volume), so a default
+  thickness change does not regress it. Record such deviations in the model doc
+  comment and `docs/models.md`, and if the default drives a self-derived smoke
+  volume (e.g. perimeter-square-corners) update that expected value too.

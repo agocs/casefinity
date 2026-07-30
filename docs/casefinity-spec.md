@@ -12,7 +12,7 @@ clearance scheme, and the tolerance stack-up behaviour so that independently
 designed parts interoperate.
 
 This is a *reference* specification: every dimension traces to a named Fusion 360
-user parameter (see `f3d-extracted-parameters.md`) as realized in the generator
+user parameter (see `f3d-parameters.md`) as realized in the generator
 (`hardcase-gridfinity-generator/src/models/`). Where the spec and the code
 disagree, the code is authoritative and this document is a bug.
 
@@ -456,7 +456,7 @@ A part is *Casefinity-conformant* iff:
 | socket `s` | `ribWidth + 2*clear` (`addInterlockRibs`) | derived |
 | `N_L,N_W` | `cavityDims()` | `SIDE/FRONT_BOARDER_FACTOR` |
 
-Provenance of every default: `f3d-extracted-parameters.md`. Geometry realization:
+Provenance of every default: `f3d-parameters.md`. Geometry realization:
 `hardcase-gridfinity-generator/src/models/bin-common.ts` (bins) and
 `.../perimeter.ts` (liner); the shared registration interface — rib/slot/boss
 widths, module centring, the REQ-4.4 boss rule — lives in one place,
