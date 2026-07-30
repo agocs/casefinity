@@ -1,7 +1,8 @@
-# Original Fusion 360 sources — the Unemployed Architect's Patreon-distributed
-# designs. Kept locally as reverse-engineering reference, never redistributed
-# here. The STEP exports in hardcase-gridfinity-generator/ground-truth/ are the
-# tracked ground truth. See README "Design provenance".
+# Original Fusion 360 sources — the Unemployed Architect's designs, kept locally
+# as reverse-engineering reference. Untracked because nothing in the build reads
+# them and they are large opaque binaries, not for licensing reasons: Casefinity
+# has his written permission. The STEP exports in
+# hardcase-gridfinity-generator/ground-truth/ are the tracked ground truth.
 *.f3d
 1. Template/
 2. Perimeter/

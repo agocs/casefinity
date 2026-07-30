@@ -12,8 +12,9 @@ exports:
 
 - `1. Template/`, `2. Perimeter/`, `3. Bins/` — original `.f3d` files (ZIP
   containers, proprietary binary payload; treat as read-only reference).
-  **Gitignored and never committed** — they are the creator's Patreon-distributed
-  designs. Present on the author's disk only; a fresh clone will not have them.
+  **Gitignored** — nothing in the build reads them and they are large opaque
+  binaries. Present on the author's disk only; a fresh clone will not have them,
+  so `aps_f3d_to_step.py` is an author-only operation.
 - `docs/f3d-parameters.md` — user parameters (names, defaults, driving
   expressions) recovered from the `.f3d` binaries; the authoritative reference
   for parameter provenance
@@ -25,9 +26,11 @@ exports:
   static site running replicad (OCCT WASM) in a web worker
 - `docs/` — all prose documentation; see the doc map below
 
-The designs belong to the Hardcase Gridfinity creator (the Unemployed Architect);
-license for publishing a public generator is unresolved. The root README's
-"Design provenance" section states the boundary — keep it accurate.
+The designs belong to the Hardcase Gridfinity creator (the Unemployed Architect).
+Casefinity has his **written permission** to reimplement them; the MIT license
+covers this repo's code only, not his designs. The site is live at
+**casefinity.net**. The root README's "Design provenance" section states the
+boundary — keep it accurate.
 
 ## Documentation map
 
