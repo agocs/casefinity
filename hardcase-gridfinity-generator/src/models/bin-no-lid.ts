@@ -15,7 +15,7 @@ export const binNoLid: ModelDef = {
   params: binParams,
   groups: [
     { title: "Basic dimensions", collapsed: false, keys: ["widthModules", "lengthModules", "overallHeight", "wallThick", "floorThick", "clear", "pullTabHeight", "pullHoleLength", "lidPullHeight"] },
-    { title: "Module features", collapsed: true, keys: ["gridSpacing", "ribWidth", "wallBump"] },
+    { title: "Module features", collapsed: true, keys: ["gridSpacing", "ribWidth", "wallBump", "draftAngle"] },
   ],
   build: buildBinBody,
 };

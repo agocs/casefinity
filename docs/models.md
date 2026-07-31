@@ -42,7 +42,7 @@ a **squared** rather than rounded cavity corner, so a bin can occupy the
 corner-most grid cell flush. The outer wall is unchanged, so it still fits the
 case's rounded corner and bottom. No such variant exists in the originals, so
 there is no ground truth; smoke locks a self-derived bbox of 350 × 250 × 110 and
-a volume of 757,113 at the 3 mm wall / 4 mm floor / 3 mm grid-bump defaults
+a volume of 757,147 at the 3 mm wall / 4 mm floor / 3 mm grid-bump defaults
 (including the near-floor wall thickening — see "Extend FLOOR_THICK" in
 `perimeter.ts`), and `npm run scaling perimeter-square-corners` guards the
 squared-corner invariant.
@@ -58,7 +58,8 @@ Side wall taper, Front wall taper, Case clearance.
 **Interior features** (collapsed) — Side border bins, Front border bins, Dividers
 per long side.
 
-**Module features** (collapsed) — Grid spacing, Grid bump, Grid bump width.
+**Module features** (collapsed) — Grid spacing, Grid bump, Grid bump width, Bump
+draft.
 
 **Printer convenience** (expanded) — Split into pieces, Printer bed width
 (0 = no limit), Printer bed depth (0 = no limit), Bed margin (per side), and a
@@ -76,9 +77,10 @@ parameters actually do to the printed result.
 
 All bins share `bin-common.ts` (`buildBinBody`, `binParams`, `box`,
 `moduleCenters`) and the same **Module features** group (collapsed): Grid
-spacing, Grid bump width, Rib depth. They all share these **Basic dimensions**
-(expanded): Width (modules), Length (modules), Height, Wall thickness, Floor
-thickness, Clearance, Pull tab height, Pull slot length, Pull slot height.
+spacing, Grid bump width, Rib depth, Bump draft. They all share these **Basic
+dimensions** (expanded): Width (modules), Length (modules), Height, Wall
+thickness, Floor thickness, Clearance, Pull tab height, Pull slot length, Pull
+slot height.
 
 ### Bin (no lid)
 
@@ -163,6 +165,27 @@ The parameter is capped at 4.5 mm: a socket's backing boss is `3w + 2c` wide and
 sits on the outermost module centre, so above ~4.87 mm it overhangs the footprint
 and bins stop tiling at the 15 mm pitch.
 
+### Grid bump draft
+
+The originals draw every rib, socket, and groove as a plain rectangular prism.
+The generator drafts them **2°** (`draftAngle`, exposed as **Bump draft** under
+*Module features*), so a rib narrows slightly toward its tip and a slot flares
+slightly at its mouth — a lead-in that helps parts find each other and takes the
+sharpness off the first layer of every slot. Set it to 0 to reproduce the
+original prisms.
+
+The draft is taken about the **wall's normal**, not about Z. These features run
+the full height of a part, so a 2° taper along Z would consume `2 × 110 ×
+tan 2° = 3.84 mm` of width on a default bin — more than a 3 mm rib has, and the
+rib would pinch to nothing 43 mm up. About the normal the same 2° costs
+`2 × 1.5 × tan 2° = 0.10 mm` over a 1.5 mm bump.
+
+Nominal width is held **at the wall face** and tapers away from it at the same
+rate on both the male and female side, so the 0.10 mm/flank locating clearance
+is identical at every depth — the draft is a lead-in, not a fit change. That
+also means a drafted part still mates with an undrafted one in both directions,
+so unlike grid bump width this one needs no agreement between parts.
+
 ### What this means for interoperability
 
 Wall and floor thickness do **not** touch the registration interface — rib and
@@ -174,9 +197,15 @@ Grid bump width **is** that interface. Bins and the liner read the one parameter
 so they agree at any setting, but **a part printed at 3 mm does not mate with one
 printed at the original 1.2 mm.** Pick one and stay with it.
 
-`npm run smoke` therefore pins `ribWidth: 1.2` for the models whose expected
-volumes come from the STEP ground truth, so those remain true fidelity
-measurements.
+Bump draft is the exception: it is a *lead-in*, not an interface width, so a
+2° part and a 0° part interlock either way round.
+
+`npm run smoke` therefore pins `ribWidth: 1.2` and `draftAngle: 0` for the
+models whose expected volumes come from the STEP ground truth, so those remain
+true fidelity measurements. Volume is a poor instrument for the draft in any
+case — it shaves the ribs and pads the sockets by the same amount, moving a
+bin's total by 2 mm³ — so smoke measures the rib's width directly instead, in a
+slab at its root and another at its tip.
 
 ## Known limitations
 

@@ -1,6 +1,10 @@
 # Casefinity Liner Interior & Accessory Specification
 
-**Status:** Proposed specification v0.2 · 2026-07-20
+**Status:** Proposed specification v0.3 · 2026-07-31
+**Changed in v0.3:** Registration features carry a draft angle `θ` taken about the
+wall's normal (see §2, REQ-4.5). Nominal widths are now stated **at the wall
+face**, which leaves every fit in §4.3 numerically unchanged and keeps drafted and
+undrafted parts intermatable — so `θ` is a lead-in, not an interface width.
 **Changed in v0.2:** Registration geometry is decoupled from wall thickness: rib
 width is its own interface constant `w` (`RIB_WIDTH`), and `WALL_THICK` is now a
 free structural parameter (see INV-2, REQ-4.4). In v0.1 both were the single
@@ -47,13 +51,20 @@ use these values (or a documented superset).
 | `w` | Rib / grid bump width | **3.00 mm** | 3.00 mm | `RIB_WIDTH` |
 | `b` | Bump height (proud/deep) | **1.50 mm** | 1.50 mm | `WALL_BUMP` = `GRID_BUMP` |
 | `c` | Registration clearance | **0.10 mm** | 0.10 mm | `CLEAR` = `LID_CLEAR` |
+| `θ` | Feature draft *(lead-in, free)* | default 2.00° | default 2.00° | `draftAngle` |
 | `t` | Wall thickness *(structural, free)* | default 1.20 mm | default 1.20 mm | `WALL_THICK` |
 | `f` | Floor / foot thickness | **1.00 mm** | 1.00 mm | `FLOOR_THICK` |
 | `H` | Nominal cavity/bin height | 110 mm | 110 mm | `OVERALL_HT` / `OVERALL_HEIGHT` |
 
 The **interface constants** are `P`, `w`, `b`, `c` (bold values). `t`, `f`, and
 `H` are *structural* parameters: a conforming part may choose them freely (walls
-of `1–6 mm` are the reasonable range) without affecting interoperability.
+of `1–6 mm` are the reasonable range) without affecting interoperability. `θ` is
+free in the same way, for a different reason: it applies equally to male and
+female features from a shared reference plane, so it cancels out of every fit
+(REQ-4.5). Two parts drafted differently — including one at `θ = 0` — still mate.
+
+Every width in this document is stated **at the wall face**. With `θ > 0` a
+feature is that wide only on that plane; see REQ-4.5.
 
 **INV-1 (unified bump).** `WALL_BUMP` (bins) and `GRID_BUMP` (liner) are the same
 value `b = 1.50 mm`, and every **rib** (male feature), on a bin or on a liner, is
@@ -142,12 +153,13 @@ A bin carries a **complementary** feature set so it registers "either way round"
 
 | Face | Feature | Geometry |
 |---|---|---|
-| `−X`, `+Y` | **Rib (male)** | `w = 3.00` wide, stands `b = 1.50` proud of the wall face, full height. One per module centre. |
-| `+X`, `−Y` | **Socket (female)** | Slot cut `b = 1.50` deep into the wall, `s = w + 2c = 3.20` wide. On a thin wall (`t < 2b`) the slot severs the wall and MUST be backed by an interior **boss** `s + 2w = 9.20` wide, `b` thick, so the cavity is not opened; on a thick wall (`t ≥ 2b`) the slot is a plain blind pocket and the boss is omitted (REQ-4.4). One per module centre. |
+| `−X`, `+Y` | **Rib (male)** | `w = 3.00` wide **at the wall face**, drafted `θ` toward its tip (2.895 there at `θ = 2°`), stands `b = 1.50` proud, full height. One per module centre. |
+| `+X`, `−Y` | **Socket (female)** | Slot cut `b = 1.50` deep into the wall, `s = w + 2c = 3.20` wide **at the wall face**, drafted `θ` toward the bottom of the pocket (3.095 there at `θ = 2°`). On a thin wall (`t < 2b`) the slot severs the wall and MUST be backed by an interior **boss** `s + 2w = 9.20` wide, `b` thick, so the cavity is not opened; on a thick wall (`t ≥ 2b`) the slot is a plain blind pocket and the boss is omitted (REQ-4.4). One per module centre. |
 
-**REQ-4.1.** Socket slot width MUST equal `w + 2c` so a mating `w`-wide rib enters
-with exactly `c = 0.10 mm` clearance **per flank**. Neither dimension involves
-`t` (INV-2).
+**REQ-4.1.** Socket slot width MUST equal `w + 2c` **at the wall face** so a mating
+`w`-wide rib enters with exactly `c = 0.10 mm` clearance **per flank**. Under
+REQ-4.5 that clearance then holds at every depth. Neither dimension involves `t`
+(INV-2).
 
 ### 4.2 Liner interior wall (the grid bumps)
 
@@ -156,11 +168,12 @@ with a bin's exterior in any of the two registrations:
 
 | Liner wall | Feature | Geometry |
 |---|---|---|
-| `−Y`, `+X` | **Rib** | `w = 3.00` wide, `b = 1.50` proud into the cavity (plus `t` embedded back into the wall — a structural anchor, not a mating dimension). One per module. |
-| `+Y`, `−X` | **Groove** | A slot `w = 3.00` wide (line-to-line with a rib), `b = 1.50` deep (from `0.30 mm` proud of the face). On a thin wall (`t < 2b`), **backed by a boss `3w = 9.00` wide extending `t + b` past the face** into the U-channel — a blind pocket, so the cavity is not opened; on a thick wall (`t ≥ 2b`) the slot is cut straight into the flat wall (REQ-4.4). One per module. |
+| `−Y`, `+X` | **Rib** | `w = 3.00` wide at the cavity face (drafted `θ` toward its tip), `b = 1.50` proud into the cavity (plus `t` embedded back into the wall — a structural anchor, not a mating dimension). One per module. |
+| `+Y`, `−X` | **Groove** | A slot `w = 3.00` wide at the cavity face (line-to-line with a rib there, drafted `θ` deeper in), `b = 1.50` deep (from `0.30 mm` proud of the face). On a thin wall (`t < 2b`), **backed by a boss `3w = 9.00` wide extending `t + b` past the face** into the U-channel — a blind pocket, so the cavity is not opened; on a thick wall (`t ≥ 2b`) the slot is cut straight into the flat wall (REQ-4.4). One per module. |
 
-**REQ-4.2.** The liner groove is `w` wide — the **same** width as a rib, with **no**
-added tangential clearance (line-to-line). Like the bin socket, the groove MUST be
+**REQ-4.2.** The liner groove is `w` wide at the cavity face — the **same** width as
+a rib there, with **no** added tangential clearance (line-to-line); under REQ-4.5
+it stays line-to-line at every depth. Like the bin socket, the groove MUST be
 a blind pocket that does not open the cavity into the U-channel hollow: on a thin
 wall the `b`-deep slot alone cuts clean through the inner wall and severs it, so it
 MUST be backed by a boss (REQ-4.4 gives the exact rule). The `0.30 mm` mouth
@@ -211,6 +224,40 @@ The male rib and the slot's mouth geometry are identical in both regimes, so a
 mating part cannot tell them apart — the boss is an internal construction detail,
 never part of the interface. At the default `t = 1.20 mm` every part is in the
 thin-wall regime; a `6 mm` liner wall (`t = 4b`) is in the thick-wall regime.
+
+### 4.5 Feature draft
+
+**REQ-4.5 (draft rule).** A registration feature MAY be drafted by an angle `θ`.
+The draft MUST be taken about the **wall's normal** — never about `Z` — and the
+feature's nominal width MUST hold **at the wall face**, tapering by `2·tan θ` per
+mm as the feature extends past that face (and widening at the same rate behind
+it). One linear taper across the whole feature: no taper-plus-straight-run.
+
+*Why not about `Z`.* These features run the full height of a part. At `H = 110 mm`
+a 2° taper along `Z` would consume `2·H·tan θ = 3.84 mm` of width — more than a
+`w = 3.00` rib has — and the rib would pinch to nothing 43 mm up. About the normal
+the same angle costs `2·b·tan θ = 0.10 mm` over the `b = 1.50` bump.
+
+*Why the fits are unchanged.* A rib's root and its mating slot's mouth are
+coplanar when two wall faces touch, so at any depth `d` past that plane both
+widths have shrunk by the same `2d·tan θ`:
+
+```
+slot(d) − rib(d) = (s − 2d·tan θ) − (w − 2d·tan θ) = s − w = 2c
+```
+
+Every fit in §4.3 therefore holds at **every** depth, not just at the face. The
+draft is a lead-in, not a clearance.
+
+**REQ-4.5.1 (mixed draft).** Conforming parts MUST interoperate across different
+values of `θ`, including `θ = 0`. This follows from holding nominal width at the
+face: a drafted rib is never wider than a nominal one, and a drafted slot is never
+narrower than nominal minus its own taper, so engagement is preserved in both
+directions. `θ` therefore needs **no agreement between parts** — unlike `w`, `b`,
+`c`, and `P`.
+
+**REQ-4.5.2.** Draft applies to the mating features only. Backing bosses (REQ-4.4)
+and other internal construction geometry MUST NOT be relied on to carry it.
 
 ---
 
@@ -435,9 +482,11 @@ A part is *Casefinity-conformant* iff:
 
 1. Its module envelope is `n·P` with footprint `F(n) = n·P − 2c` (REQ-3.2).
 2. It carries the §4.1 handed rib/socket set at module centres, `w` wide, `b`
-   proud/deep, sockets `w + 2c` wide (REQ-4.1), blind per REQ-4.4.
+   proud/deep, sockets `w + 2c` wide (REQ-4.1), blind per REQ-4.4. Widths are
+   measured at the wall face; any draft follows REQ-4.5.
 3. It uses the interface constants of §2 unchanged except `CLEAR` (the only tuning
-   knob); structural parameters (`WALL_THICK`, `FLOOR_THICK`, height) are free.
+   knob); structural parameters (`WALL_THICK`, `FLOOR_THICK`, height) and the
+   draft `θ` are free.
 4. If it defines an interior pocket, that pocket snaps to whole modules (INV-7).
 
 ---
@@ -451,6 +500,7 @@ A part is *Casefinity-conformant* iff:
 | `t` | `wallThick` (structural only) | `WALL_THICK` |
 | `b` | `wallBump` / `gridBump` | `WALL_BUMP` / `GRID_BUMP` |
 | `c` | `clear` | `CLEAR` / `LID_CLEAR` |
+| `θ` | `draftAngle` (`registration.ts`) | — (generator-introduced; the originals are undrafted) |
 | `f` | `floorThick` / `footThick` | `FLOOR_THICK` |
 | `F(n)` | `widthModules*gridSpacing - 2*clear` | `MODULE_NUMBER * GRID_SPACING` (− `CLEAR`) |
 | socket `s` | `ribWidth + 2*clear` (`addInterlockRibs`) | derived |
@@ -459,7 +509,10 @@ A part is *Casefinity-conformant* iff:
 Provenance of every default: `f3d-parameters.md`. Geometry realization:
 `hardcase-gridfinity-generator/src/models/bin-common.ts` (bins) and
 `.../perimeter.ts` (liner); the shared registration interface — rib/slot/boss
-widths, module centring, the REQ-4.4 boss rule — lives in one place,
-`.../registration.ts`. Invariants INV-1, INV-2, INV-7, the fit REQ-4.1 and
+widths, module centring, the REQ-4.4 boss rule, the REQ-4.5 draft — lives in one
+place, `.../registration.ts`. Invariants INV-1, INV-2, INV-7, the fit REQ-4.1 and
 the boss rule REQ-4.4 are exercised by `npm run scaling` (including a
-`WALL_THICK` sweep over `1–6 mm` on the liner).
+`WALL_THICK` sweep over `1–6 mm` on the liner). REQ-4.5 is exercised by
+`npm run smoke`, which measures a rib's width in a slab at its root and another
+at its tip — volume cannot see a draft that shaves the ribs and pads the sockets
+by the same amount.

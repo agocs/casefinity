@@ -37,9 +37,15 @@ const { models, defaultValues } = await import("../src/models/index.ts");
 // A `params` entry overrides the defaults for the VOLUME check only (the bbox
 // is always measured at the shipped defaults). It exists so a ground-truth
 // volume can stay a ground-truth volume where a default deliberately deviates:
-// registration.ts ships a 3 mm grid bump for printability, the originals used
-// 1.2 mm. Volumes marked self-derived carry no such pin — they track whatever
-// the shipped defaults produce.
+// registration.ts ships a 3 mm grid bump and a 2 deg bump draft for
+// printability, the originals used 1.2 mm and no draft. Volumes marked
+// self-derived carry no such pin — they track whatever the shipped defaults
+// produce.
+//
+// The draft override matters less than it looks but is kept honest anyway: it
+// narrows every rib and widens every socket by the same ~0.10 mm, so the two
+// nearly cancel in a bin's total (bin-no-lid moves 28618 -> 28620). Volume is
+// simply the wrong instrument for it — see the dedicated draft check below.
 const expected = {
   perimeter: { x: 350, y: 250, z: 110 },
   "smooth-perimeter": { x: 350, y: 250, z: 110 },
@@ -47,21 +53,24 @@ const expected = {
   // 360 designs) — bbox matches the base perimeter (only the cavity corner
   // changes); volume is self-derived (a square cavity corner removes less
   // material than the rounded arc, so it's slightly higher than perimeter's).
-  // 727573 at the original 1.2 mm grid bump; +29540 at the 3 mm default, which
-  // widens the cavity-wall ribs, their backing bosses and the dividers.
-  "perimeter-square-corners": { x: 350, y: 250, z: 110, volume: 757113 },
-  "bin-no-lid": { x: 46.3, y: 46.3, z: 115, volume: 28618, params: { ribWidth: 1.2 } },
+  // 727573 at the original 1.2 mm grid bump; +29574 at the shipped defaults,
+  // almost all of it the 3 mm grid bump widening the cavity-wall ribs, their
+  // backing bosses and the dividers. The 2 deg draft accounts for +34 of it:
+  // it takes material off every rib and puts slightly more back by narrowing
+  // every groove, and this model has more grooves than ribs in play.
+  "perimeter-square-corners": { x: 350, y: 250, z: 110, volume: 757147 },
+  "bin-no-lid": { x: 46.3, y: 46.3, z: 115, volume: 28618, params: { ribWidth: 1.2, draftAngle: 0 } },
   // body + lid: plate flush with the rim, both rail beads, the lock swell, the
   // +X rail ledge, the finger scoop, the socket notches and the TOP engraving.
   // GT total 33722, i.e. 0.09% — the residual is the engraving (a different
   // font from the original) plus the pull slot's draft.
-  "bin-with-lid": { x: 46.3, y: 46.3, z: 115, volume: 33754, params: { ribWidth: 1.2 } },
+  "bin-with-lid": { x: 46.3, y: 46.3, z: 115, volume: 33754, params: { ribWidth: 1.2, draftAngle: 0 } },
   // volume = GT total (body 68178 + two lids 9596 + 9577); smoke sums all shapes.
-  "bin-double-sided": { x: 61.3, y: 61.3, z: 115, volume: 87351, params: { ribWidth: 1.2 } },
+  "bin-double-sided": { x: 61.3, y: 61.3, z: 115, volume: 87351, params: { ribWidth: 1.2, draftAngle: 0 } },
   "perimeter-template": { x: 350, y: 250, z: 110 },
   // No STEP ground truth — a filled Bin (no lid). bbox matches the bin;
   // volume is self-derived (bin footprint solid + ribs - sockets/pull slot).
-  "solid-block": { x: 46.3, y: 46.3, z: 115, volume: 220848 },
+  "solid-block": { x: 46.3, y: 46.3, z: 115, volume: 220843 },
 };
 const VOLUME_TOLERANCE = 0.005; // 0.5%
 
@@ -143,14 +152,20 @@ for (const model of models) {
 //     a seam, or a bore left half-cut, shows up as debris or a second solid);
 //   - the bbox is untouched: a pad may not stand above the rim or outside the
 //     case wall, or the frame stops fitting the case;
-//   - total volume = boss-off 749396 + 8 pads (4 seams x 2 halves): 4 clearance
-//     halves at 455.0 and 4 pilot halves at 473.1 mm3, the difference being the
-//     narrower pilot bore. (Boss-off was 719856 at the original 1.2 mm grid
-//     bump; the pads themselves derive from the screw size, not the bump.)
+//   - total volume = boss-off + 8 pads (4 seams x 2 halves): 4 clearance halves
+//     at ~455.0 and 4 pilot halves at ~473.1 mm3, the difference being the
+//     narrower pilot bore, less 4 x 1.35 mm3 for the clearance-mouth chamfers.
+//     (Boss-off was 719856 at the original 1.2 mm grid bump; the pads
+//     themselves derive from the screw size, not the bump.)
 //   - both holes are actually open: a probe cylinder just inside the pilot
 //     diameter, run through BOTH pads of one joint, must meet no material, while
 //     one just outside it must meet material on the pilot side (i.e. the pilot
 //     hole really is the smaller of the two).
+//   - the 45 deg lead-in chamfer is on the clearance hole's outer mouth and
+//     ONLY there. It is the marker for which end takes the screw, so a chamfer
+//     that migrated to the pilot end, or appeared on both, would mislead
+//     someone assembling the frame — a probe at the chamfered radius must find
+//     the clearance mouth open and the pilot mouth solid.
 console.log("perimeter with screw bosses:");
 {
   const { drawCircle } = await import("replicad");
@@ -185,7 +200,7 @@ console.log("perimeter with screw bosses:");
     `bbox unchanged by the bosses (${dims.map((d) => d.toFixed(2)).join(" x ")})`,
   );
 
-  const wantVolume = 753108;
+  const wantVolume = 753137;
   const relative = Math.abs(volume - wantVolume) / wantVolume;
   check(relative <= VOLUME_TOLERANCE, `volume within ${(VOLUME_TOLERANCE * 100).toFixed(1)}% of ${wantVolume}`);
 
@@ -214,6 +229,67 @@ console.log("perimeter with screw bosses:");
   const around = meets(probe(pilotR + 0.15, splitX, p.bossLen));
   check(through < 0.01, `pilot+clearance holes open right through the joint (${through.toFixed(3)} mm3 of material)`);
   check(around > 1, `material immediately outside the pilot hole (${around.toFixed(2)} mm3)`);
+
+  // The lead-in chamfer. `around` above located the pilot half at x > splitX, so
+  // the clearance half runs [splitX - bossLen, splitX] and its outer mouth is at
+  // x = splitX - bossLen. Probe at a radius the chamfer has opened but the plain
+  // bore has not: empty in the chamfer's own span, solid just past it.
+  const clearR = (p.bossScrewDia + 0.1) / 2; // M3 max major dia
+  const ch = Math.min(0.5, p.bossWall - 0.2);
+  const mouth = splitX - p.bossLen;
+  const ring = clearR + ch - 0.1;
+  const inChamfer = meets(probe(ring, mouth, 0.1));
+  const pastChamfer = meets(probe(ring, mouth + ch + 0.1, 0.5));
+  check(inChamfer < 0.01,
+    `clearance mouth chamfered to r>=${ring.toFixed(2)} (${inChamfer.toFixed(3)} mm3 of material in the chamfer)`);
+  check(pastChamfer > 1.5,
+    `chamfer runs out after ${ch} mm, bore back to r=${clearR.toFixed(2)} (${pastChamfer.toFixed(2)} mm3)`);
+  // ...and the pilot end is NOT chamfered, so the two ends stay tellable apart.
+  const pilotMouth = meets(probe(ring, splitX + p.bossLen - 0.6, 0.5));
+  check(pilotMouth > 1.5, `pilot mouth left sharp (${pilotMouth.toFixed(2)} mm3 of material at the same radius)`);
+}
+
+// ---------------------------------------------------------------------------
+// Grid-bump draft (registration.ts). Neither bbox nor volume can see it: the
+// draft is taken about the wall's normal, so the ribs still reach exactly as
+// far, and the material it shaves off every rib it very nearly puts back by
+// narrowing every socket. Measure the rib's width directly instead — in a thin
+// slab near its root and another near its tip — and check the taper is the
+// 2*depth*tan(draft) the angle implies.
+console.log("grid bump draft:");
+{
+  const { drawRectangle } = await import("replicad");
+  const { modelById } = await import("../src/models/index.ts");
+  const model = modelById("bin-no-lid");
+  const p = defaultValues(model);
+  const bin = model.build(p);
+  const w = p.widthModules * p.gridSpacing - 2 * p.clear;
+  const face = -w / 2; // the -X wall's outer face; only ribs lie beyond it
+  const [z0, z1] = [5, 100]; // clear of the floor and the pull tab
+  const check = (ok, msg) => {
+    if (ok) console.log(`  OK: ${msg}`);
+    else { console.error(`  FAIL: ${msg}`); failed = true; }
+  };
+  // Mean rib width over the slab at depth [d0, d1] out from the face. Both
+  // slabs stay strictly inside the rib's span so no probe face lands coplanar
+  // with the bin's own. Divided by the rib count: the slab spans all of them.
+  const widthAtDepth = (d0, d1) => {
+    const slab = drawRectangle(d1 - d0, (p.lengthModules + 1) * p.gridSpacing)
+      .translate(face - (d0 + d1) / 2, 0)
+      .sketchOnPlane("XY", z0)
+      .extrude(z1 - z0);
+    const v = measureVolume(bin.clone().intersect(slab));
+    return v / ((d1 - d0) * (z1 - z0) * p.lengthModules);
+  };
+  const k = Math.tan((p.draftAngle * Math.PI) / 180);
+  const want = (d0, d1) => p.ribWidth - 2 * ((d0 + d1) / 2) * k;
+  const root = widthAtDepth(0.1, 0.2);
+  const tip = widthAtDepth(p.wallBump - 0.2, p.wallBump - 0.1);
+  check(Math.abs(root - want(0.1, 0.2)) < 0.01,
+    `rib is ${root.toFixed(3)} mm wide near its root (want ${want(0.1, 0.2).toFixed(3)})`);
+  check(Math.abs(tip - want(p.wallBump - 0.2, p.wallBump - 0.1)) < 0.01,
+    `rib narrows to ${tip.toFixed(3)} mm near its tip ` +
+      `(want ${want(p.wallBump - 0.2, p.wallBump - 0.1).toFixed(3)} at ${p.draftAngle} deg draft)`);
 }
 
 // ---------------------------------------------------------------------------

@@ -81,7 +81,7 @@ export const binDoubleSided: ModelDef = {
   params: doubleSidedParams,
   groups: [
     { title: "Basic dimensions", collapsed: false, keys: ["widthModules", "lengthModules", "overallHeight", "wallThick", "floorThick", "clear", "pullTabHeight", "pullHoleLength", "lidPullHeight", "bottomFillet"] },
-    { title: "Module features", collapsed: true, keys: ["gridSpacing", "ribWidth", "wallBump"] },
+    { title: "Module features", collapsed: true, keys: ["gridSpacing", "ribWidth", "wallBump", "draftAngle"] },
   ],
   build(p: ParamValues): Shape3D[] {
     const w = p.widthModules * p.gridSpacing - 2 * p.clear;

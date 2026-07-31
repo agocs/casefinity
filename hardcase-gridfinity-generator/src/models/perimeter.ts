@@ -1,7 +1,7 @@
 import { drawRoundedRectangle, drawRectangle, drawCircle, draw } from "replicad";
 import type { Shape3D, Sketch, Drawing } from "replicad";
 import type { ModelDef, ParamDef, ParamValues } from "./types.ts";
-import { gridCenters, interlockDims, ribWidthParam } from "./registration.ts";
+import { draftAngleParam, draftedProfile, gridCenters, interlockDims, ribWidthParam } from "./registration.ts";
 
 /**
  * Port of Hardcase_Gridfinity_Perimeter.f3d — the liner frame that drops into
@@ -219,12 +219,12 @@ function applyGridFeatures(shape: Shape3D, p: ParamValues, walls: WallSpec[] = A
   // depths are structural: ribs span GRID_BUMP proud of the cavity face plus
   // WALL_THICK back into the wall (the embed is anchoring; the proud, mating
   // part is always exactly GRID_BUMP), grooves cut from 0.3 mm inside the face
-  // to GRID_BUMP deep.
+  // to GRID_BUMP deep. Both are DRAFTED about the wall's normal — nominal width
+  // at the cavity face, narrowing as the feature runs away from it (see
+  // draftedProfile) — so a rib thins toward its tip and a groove flares at its
+  // mouth. Nothing about the depths changes, hence nothing about the cavity's
+  // extents.
   const { ribWidth: rw, grooveWidth, linerBossWidth: bossWide, needBoss } = interlockDims(p, b);
-  const ribDepth = b + t;
-  const grooveDepth = b + 0.3;
-  const ribOff = (t - b) / 2; // face -> rib-box centre (proud into cavity)
-  const grooveOff = grooveDepth / 2 - 0.3; // face -> groove-box centre (into wall)
   const rect = (cx: number, cy: number, wx: number, wy: number) =>
     drawRectangle(wx, wy).translate(cx, cy);
   type Draw = ReturnType<typeof rect>;
@@ -258,11 +258,29 @@ function applyGridFeatures(shape: Shape3D, p: ParamValues, walls: WallSpec[] = A
       );
       return solid(rects);
     };
+    // The drafted form of `feat`, given the feature's extent as a mag range and
+    // the width it holds at the cavity face. `mag` grows away from the cavity
+    // centre and the signed coordinate is `sign * mag`, so "narrows with
+    // increasing mag" (a groove, going into the wall) is `narrow = sign` and
+    // "narrows with decreasing mag" (a rib, going into the cavity) is its
+    // negation.
+    const draftedFeat = (magFrom: number, magTo: number, wide: number, intoWall: boolean): Shape3D =>
+      solid(centers.map((c) => draftedProfile({
+        axis: w.axis,
+        from: w.sign * magFrom,
+        to: w.sign * magTo,
+        face: w.sign * half[w.axis],
+        narrow: (intoWall ? w.sign : -w.sign) as 1 | -1,
+        width: wide,
+        at: c,
+      }, p.draftAngle ?? 0)));
     if (w.kind === "rib") {
-      out = out.fuse(feat(half[w.axis] + ribOff, rw, ribDepth));
+      out = out.fuse(draftedFeat(half[w.axis] - b, half[w.axis] + t, rw, false));
     } else {
+      // The boss is not drafted: REQ-4.4 makes it an internal construction
+      // detail, never touched by a mating part.
       if (needBoss) out = out.fuse(feat(half[w.axis] + bossDepth / 2, bossWide, bossDepth)); // backing boss
-      out = out.cut(feat(half[w.axis] + grooveOff, grooveWidth, grooveDepth)); // the slot
+      out = out.cut(draftedFeat(half[w.axis] - 0.3, half[w.axis] + b, grooveWidth, true)); // the slot
     }
   }
   return out;
@@ -386,6 +404,8 @@ type BossDims = {
   zTop: number;
   /** Vertical drop of the 45° gusset ramp (== pad, unless clamped). */
   run: number;
+  /** 45° lead-in chamfer on the clearance hole's outer mouth. */
+  chamfer: number;
 };
 
 /**
@@ -428,7 +448,13 @@ function bossDims(p: ParamValues): BossDims | null {
   // shallow for the full run it is clamped to land on the floor slab, and is
   // then steeper than 45° (see the model doc comment).
   const run = Math.min(pad, zTop - pad - p.footThick);
-  return { clearDia, pilotDia, pad, embed: Math.min(0.4, p.wallThick / 2), zTop, run };
+  // Clamped below bossWall so the 45° cone can never break out through the
+  // pad's side: the bore is centred in a pad clearDia + 2*bossWall square, so
+  // the hole has exactly bossWall of material all round. At the parameter's
+  // bossWall >= 1 floor the clamp is inactive, but it keeps the geometry safe
+  // if that floor ever moves.
+  const chamfer = Math.min(0.5, p.bossWall - 0.2);
+  return { clearDia, pilotDia, pad, embed: Math.min(0.4, p.wallThick / 2), zTop, run, chamfer };
 }
 
 /** One half of a boss pair: which seam, which side of it, and which hole. */
@@ -476,14 +502,52 @@ function bossHalf(p: ParamValues, s: BossSeam, d: BossDims): { pad: Shape3D; bor
   // X = offset and extrudes toward +X; "XZ" maps it to (X, Z) but sits at
   // Y = -offset and extrudes toward -Y — hence the negated, length-shifted
   // offset so both cases span [u0, u0 + len] on the seam axis.
-  const prism = (dr: Drawing, from: number, len: number): Shape3D =>
-    s.axis === "X"
-      ? ((dr.sketchOnPlane("YZ", from) as Sketch).extrude(len) as Shape3D)
-      : ((dr.sketchOnPlane("XZ", -(from + len)) as Sketch).extrude(len) as Shape3D);
+  const prism = (dr: Drawing, from: number, len: number, endFactor?: number): Shape3D => {
+    const opts = endFactor === undefined
+      ? undefined
+      : { extrusionProfile: { profile: "linear" as const, endFactor } };
+    return s.axis === "X"
+      ? ((dr.sketchOnPlane("YZ", from) as Sketch).extrude(len, opts) as Shape3D)
+      : ((dr.sketchOnPlane("XZ", -(from + len)) as Sketch).extrude(len, opts) as Shape3D);
+  };
   const r = (s.hole === "clear" ? d.clearDia : d.pilotDia) / 2;
   const over = 0.5; // both holes are through holes; over-cut leaves no film
-  const bore = drawCircle(r).translate(nOut - g * (d.pad / 2), d.zTop - d.pad / 2);
-  return { pad: prism(prof, u0, s.len), bore: prism(bore, u0 - over, s.len + 2 * over) };
+  const nCentre = nOut - g * (d.pad / 2); // the bore axis, on the wall normal
+  const zCentre = d.zTop - d.pad / 2;
+  let bore = prism(drawCircle(r).translate(nCentre, zCentre), u0 - over, s.len + 2 * over);
+
+  // 45° lead-in chamfer, on the CLEARANCE hole's outer mouth only — the end the
+  // screw actually enters. Deliberately asymmetric: at the M3 defaults a ø3.10
+  // clearance hole and a ø2.40 pilot are not reliably distinguishable by eye in
+  // a printed part, so the chamfered mouth is also the marker for which end
+  // takes the screw. The pilot hole and both seam-facing ends stay sharp.
+  if (s.hole === "clear" && d.chamfer > 0) {
+    const ch = d.chamfer;
+    const mouth = s.side > 0 ? u0 + s.len : u0; // the half's free end, away from the seam
+    const dir = s.side > 0 ? 1 : -1; // outward along the seam axis
+    // The cone runs `over` PAST the mouth, still growing at 45°, rather than
+    // stopping on it: ending flush would leave an annular step face coplanar
+    // with the pad's end face, and coplanar faces are where OCCT booleans
+    // misbehave. Past the face the extra cone is cutting air.
+    const ends = [
+      { u: mouth - dir * ch, r },
+      { u: mouth + dir * over, r: r + ch + over },
+    ].sort((a, b) => a.u - b.u);
+    const [lo, hi] = ends;
+    // `prism` extrudes toward +u on the X axis but toward -u on the Y axis (see
+    // its note above), so a linear extrusion profile scales opposite ends in the
+    // two cases — draw the circle at whichever end it starts from.
+    const [rStart, rEnd] = s.axis === "X" ? [lo.r, hi.r] : [hi.r, lo.r];
+    // Drawn on the axis and moved into place afterwards, NOT drawn in place: an
+    // extrusion profile sweeps along a spine rooted at the sketch plane's
+    // ORIGIN and scales the section about that spine, so a cone drawn at the
+    // bore's offset would taper off toward the plane origin and cut air 40 mm
+    // away from the hole. Verified against the kernel.
+    const cone = prism(drawCircle(rStart), lo.u, hi.u - lo.u, rEnd / rStart)
+      .translate(s.axis === "X" ? [0, nCentre, zCentre] : [nCentre, 0, zCentre]);
+    bore = bore.fuse(cone);
+  }
+  return { pad: prism(prof, u0, s.len), bore };
 }
 
 /**
@@ -754,6 +818,7 @@ export const perimeterParams: ParamDef[] = [
     { key: "frontWallTaper", fusionName: "FRONT_WALL_TAPER", label: "Front wall taper", default: 2, unit: "deg", min: 0, max: 15, step: 0.5 },
     { key: "wallThick", fusionName: "WALL_THICK", label: "Wall thickness", default: 3, unit: "mm", min: 0.4, max: 6, step: 0.1 },
     ribWidthParam,
+    draftAngleParam,
     { key: "clearance", fusionName: "CLEARANCE", label: "Case clearance", default: 0, unit: "mm", min: 0, max: 1, step: 0.05 },
     { key: "gridSpacing", fusionName: "GRID_SPACING", label: "Grid spacing", default: 15, unit: "mm", min: 10, max: 50, step: 0.5 },
     { key: "gridBump", fusionName: "GRID_BUMP", label: "Grid bump", default: 1.5, unit: "mm", min: 0, max: 3, step: 0.1 },
@@ -838,7 +903,7 @@ export const perimeter: ModelDef = {
     { title: "Basic dimensions", collapsed: false, keys: ["overallLength", "overallWidth", "overallHeight", "wallThick", "footThick"] },
     { title: "Advanced dimensions", collapsed: true, keys: ["bottomCornerRadius", "wallCornerRadius", "sideWallTaper", "frontWallTaper", "clearance"] },
     { title: "Interior features", collapsed: true, keys: ["sideBoarderBinAdd", "frontBoarderBinAdd", "dividers"] },
-    { title: "Module features", collapsed: true, keys: ["gridSpacing", "gridBump", "ribWidth"] },
+    { title: "Module features", collapsed: true, keys: ["gridSpacing", "gridBump", "ribWidth", "draftAngle"] },
     { title: "Printer convenience", collapsed: false, keys: ["split", "bedWidth", "bedDepth", "bedMargin", "dovetailWidth", "dovetailDepth", "dovetailAngle", "dovetailClear"] },
     { title: "Screw bosses", collapsed: true, keys: ["bosses", "bossScrewDia", "bossHoleFactor", "bossLen", "bossWall"] },
   ],
