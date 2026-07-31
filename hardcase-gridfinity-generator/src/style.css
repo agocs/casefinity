@@ -64,6 +64,17 @@ body {
   color: #5b9bd5;
 }
 
+.github-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.github-icon {
+  vertical-align: middle;
+  opacity: 0.8;
+}
+
 /* --- Checkbox fields --- */
 .checkbox-field {
   display: flex;
