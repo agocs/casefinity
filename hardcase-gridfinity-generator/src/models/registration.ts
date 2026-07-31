@@ -1,3 +1,5 @@
+import { draw } from "replicad";
+import type { Drawing } from "replicad";
 import type { ParamDef, ParamValues } from "./types.ts";
 
 /**
@@ -28,6 +30,75 @@ import type { ParamDef, ParamValues } from "./types.ts";
  * standard 15 mm pitch: the boss starts overhanging (and the bin stops tiling)
  * above w = 4.87. Measured — the bbox is exact at 4.8 and grows at 5. */
 export const ribWidthParam: ParamDef = { key: "ribWidth", label: "Grid bump width", default: 3, unit: "mm", min: 0.6, max: 4.5, step: 0.1 };
+
+/** Plan-view draft on every registration feature, taken about the wall's
+ * NORMAL — not about Z. The features are full-height vertical prisms, so a 2°
+ * taper along Z would eat `2 * 110 * tan 2° = 3.84 mm` of width on a default
+ * bin, more than a 3 mm rib has; drafting along Z is only possible at a
+ * height-dependent angle. About the normal the same 2° costs
+ * `2 * b * tan 2° = 0.10 mm` over a 1.5 mm bump, so ribs narrow slightly
+ * toward their tip and slots flare slightly at the mouth — a lead-in.
+ *
+ * No Fusion name: like RIB_WIDTH this is a generator interface constant, not a
+ * recovered user parameter. The originals have no draft; set this to 0 to
+ * reproduce their geometry exactly (which is what smoke.mjs does to keep its
+ * volumes pinned to the STEP ground truth). See docs/models.md "Intentional
+ * deviations from the originals". */
+export const draftAngleParam: ParamDef = { key: "draftAngle", label: "Bump draft", default: 2, unit: "deg", min: 0, max: 5, step: 0.5 };
+
+/** A drafted registration feature in plan view, in the frame of the wall that
+ * carries it. See `draftedProfile`. */
+export interface DraftedFeature {
+  /** The wall's normal axis; `width` runs along the other one. */
+  axis: "X" | "Y";
+  /** The feature's extent on `axis`, either order. */
+  from: number;
+  to: number;
+  /** Coordinate on `axis` where `width` is nominal — the wall face. */
+  face: number;
+  /** Sign on `axis` of the direction the feature narrows in: a rib narrows
+   * toward its tip, a female slot toward the bottom of its pocket. */
+  narrow: 1 | -1;
+  /** Nominal width at `face`. */
+  width: number;
+  /** The feature's centre on the other axis — a module centre (REQ-3.4). */
+  at: number;
+}
+
+/**
+ * The plan-view trapezoid of a drafted feature: `width` wide at the wall face,
+ * narrowing by `2 * tan(draft)` per mm as it extends past that face and
+ * widening at the same rate behind it. ONE linear taper across the whole
+ * prism, never a taper plus a straight run — that is what keeps the fit exact.
+ *
+ * A rib's root and its mating slot's mouth are coplanar when two wall faces
+ * touch, so both widths shrink identically with depth `d` past that plane and
+ * `slot(d) - rib(d) = s - w = 2c` at EVERY depth: the REQ-4.1 locating
+ * clearance and the REQ-4.2 line-to-line groove are unchanged, and the draft is
+ * purely a lead-in. It also means a drafted part mates with an undrafted one
+ * in either direction, so the angle needs no agreement between parts (INV-1).
+ *
+ * Extrude the result in Z as before — the draft never tilts a feature in Z.
+ *
+ * The half-width is floored at 0.05 mm: at the parameter extremes (a 0.6 mm rib
+ * drafted 5° over a 3 mm bump) the taper would otherwise close the far end to
+ * nothing and hand the kernel a degenerate face.
+ */
+export function draftedProfile(f: DraftedFeature, draftDeg: number): Drawing {
+  const k = Math.tan((draftDeg * Math.PI) / 180);
+  const half = (n: number) => Math.max(f.width / 2 - (n - f.face) * f.narrow * k, 0.05);
+  const h0 = half(f.from);
+  const h1 = half(f.to);
+  // Corner order traces the quad without self-intersecting, whichever axis is
+  // the normal: low-normal/low-width, high-normal/low-width, then back.
+  const pt = (n: number, w: number): [number, number] =>
+    f.axis === "X" ? [n, f.at + w] : [f.at + w, n];
+  return draw(pt(f.from, -h0))
+    .lineTo(pt(f.to, -h1))
+    .lineTo(pt(f.to, h1))
+    .lineTo(pt(f.from, h0))
+    .close();
+}
 
 /** x/y offsets of module centres, e.g. 3 modules @ 15 → [-15, 0, 15]. Both
  * families centre their features here (REQ-3.4), which is why bin ribs and

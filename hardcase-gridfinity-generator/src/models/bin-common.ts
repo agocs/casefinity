@@ -1,7 +1,14 @@
 import { draw, drawRectangle } from "replicad";
 import type { Shape3D, Sketch } from "replicad";
 import type { ParamDef, ParamValues } from "./types.ts";
-import { interlockDims, moduleCenters, ribWidthParam } from "./registration.ts";
+import {
+  draftAngleParam,
+  draftedProfile,
+  interlockDims,
+  moduleCenters,
+  ribWidthParam,
+} from "./registration.ts";
+import type { DraftedFeature } from "./registration.ts";
 
 export { moduleCenters };
 
@@ -42,6 +49,22 @@ export function box(
     .extrude(z1 - z0) as Shape3D;
 }
 
+/** The prism form of `draftedProfile`: a drafted registration feature standing
+ * from `z0` to `z1`. Draft is taken about the wall's normal, so the feature is
+ * still a straight vertical extrusion — only its cross-section is a trapezoid
+ * rather than a rectangle. */
+export function draftedBox(f: DraftedFeature, p: ParamValues, z0: number, z1: number): Shape3D {
+  return (draftedProfile(f, p.draftAngle ?? 0).sketchOnPlane("XY", z0) as Sketch).extrude(z1 - z0) as Shape3D;
+}
+
+/** The +X socket cutter, shared with the with-lid variant's rail ledge (which
+ * re-cuts the same slot through material added after the body was built — it
+ * has to be the same drafted cutter or the slot steps in width partway up). */
+export function binSocketCutterX(p: ParamValues, w: number, c: number): DraftedFeature {
+  const { socketWidth } = interlockDims(p, p.wallBump);
+  return { axis: "X", from: w / 2 - p.wallBump, to: w / 2, face: w / 2, narrow: -1, width: socketWidth, at: c };
+}
+
 /** Parameters shared by every bin variant. */
 export const binParams: ParamDef[] = [
   { key: "widthModules", fusionName: "WIDTH_MODULE_NUMBER", label: "Width (modules)", default: 3, unit: "", min: 1, max: 20, step: 1 },
@@ -50,6 +73,7 @@ export const binParams: ParamDef[] = [
   { key: "overallHeight", fusionName: "OVERALL_HT", label: "Height", default: 110, unit: "mm", min: 20, max: 300, step: 1 },
   { key: "wallThick", fusionName: "WALL_THICK", label: "Wall thickness", default: 1.2, unit: "mm", min: 0.8, max: 3, step: 0.1 },
   ribWidthParam,
+  draftAngleParam,
   { key: "floorThick", fusionName: "FLOOR_THICK", label: "Floor thickness", default: 1, unit: "mm", min: 0.6, max: 4, step: 0.2 },
   { key: "clear", fusionName: "CLEAR", label: "Clearance", default: 0.1, unit: "mm", min: 0, max: 0.5, step: 0.05 },
   { key: "wallBump", fusionName: "WALL_BUMP", label: "Rib depth", default: 1.5, unit: "mm", min: 0.5, max: 3, step: 0.1 },
@@ -89,19 +113,26 @@ export function addInterlockRibs(
   const t = p.wallThick;
   const bump = p.wallBump;
   const { ribWidth: rw, socketWidth: slotWidth, binBossWidth: bossWidth, needBoss } = interlockDims(p, bump);
+  // Ribs and sockets are drafted about the wall's normal (registration.ts):
+  // nominal width at the wall face, narrowing as the feature runs away from it.
+  // The backing bosses are NOT drafted — REQ-4.4 makes them an internal
+  // construction detail that no mating part ever touches.
   for (const c of moduleCenters(p.lengthModules, p.gridSpacing)) {
-    bin = bin.fuse(box(bump, rw, 0, h, -w / 2 - bump / 2, c));
+    bin = bin.fuse(draftedBox(
+      { axis: "X", from: -w / 2 - bump, to: -w / 2, face: -w / 2, narrow: -1, width: rw, at: c }, p, 0, h));
   }
   for (const c of moduleCenters(p.widthModules, p.gridSpacing)) {
-    bin = bin.fuse(box(rw, bump, 0, h, c, d / 2 + bump / 2));
+    bin = bin.fuse(draftedBox(
+      { axis: "Y", from: d / 2, to: d / 2 + bump, face: d / 2, narrow: 1, width: rw, at: c }, p, 0, h));
   }
   for (const c of moduleCenters(p.lengthModules, p.gridSpacing)) {
     if (needBoss) bin = bin.fuse(box(bump, bossWidth, bossZ0, h, w / 2 - t - bump / 2, c));
-    bin = bin.cut(box(bump, slotWidth, 0, h, w / 2 - bump / 2, c));
+    bin = bin.cut(draftedBox(binSocketCutterX(p, w, c), p, 0, h));
   }
   for (const c of moduleCenters(p.widthModules, p.gridSpacing)) {
     if (needBoss) bin = bin.fuse(box(bossWidth, bump, bossZ0, h, c, -d / 2 + t + bump / 2));
-    bin = bin.cut(box(slotWidth, bump, 0, h, c, -d / 2 + bump / 2));
+    bin = bin.cut(draftedBox(
+      { axis: "Y", from: -d / 2, to: -d / 2 + bump, face: -d / 2, narrow: 1, width: slotWidth, at: c }, p, 0, h));
   }
   return bin;
 }

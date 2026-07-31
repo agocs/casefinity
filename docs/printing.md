@@ -94,6 +94,14 @@ in a **7.9 mm pad** — about 2.6 × nominal, heavier than the 2 × moulding rul
 thumb because the boss prints with its axis horizontal, so hoop stress at the hole
 runs partly across layer lines.
 
+### Which end takes the screw
+
+The clearance hole's outer mouth carries a **45° × 0.5 mm lead-in chamfer**; the
+pilot hole and both seam-facing ends are left sharp. Besides easing the screw in,
+that is the point of it: 3.10 mm and 2.40 mm holes in a printed part are not
+reliably tellable apart by eye, and the chamfered mouth is. **Drive the screw
+into the funnelled hole** — it is always on the piece carrying the dovetail tang.
+
 6 mm of engagement per side means the defaults want an **M3 × 12 thread-forming
 screw for plastics** — REMFORM, Plastite, PT or similar, **not** a machine screw.
 

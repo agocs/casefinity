@@ -2,7 +2,7 @@ import { draw, drawText, drawCircle } from "replicad";
 import type { Shape3D, Sketch } from "replicad";
 import type { ModelDef, ParamValues } from "./types.ts";
 import { textParam } from "./types.ts";
-import { binParams, buildBinBody, box, withDefaults } from "./bin-common.ts";
+import { binParams, binSocketCutterX, buildBinBody, box, draftedBox, withDefaults } from "./bin-common.ts";
 import { interlockDims, moduleCenters } from "./registration.ts";
 
 /**
@@ -97,10 +97,11 @@ function addLidRailLedge(body: Shape3D, p: ParamValues): Shape3D {
     (chamfer.sketchOnPlane("XZ", -f.d / 2) as Sketch).extrude(f.d) as Shape3D,
   );
   // The interlock sockets are cut through this wall before the ledge exists, so
-  // re-cut them or the ledge plugs them from the inside.
-  const { socketWidth } = interlockDims(p, p.wallBump);
+  // re-cut them or the ledge plugs them from the inside. Same drafted cutter the
+  // body used (binSocketCutterX) — a plain box here would step the slot's width
+  // partway up its height.
   for (const c of moduleCenters(p.lengthModules, p.gridSpacing)) {
-    ledge = ledge.cut(box(p.wallBump, socketWidth, 0, f.h, f.w / 2 - p.wallBump / 2, c));
+    ledge = ledge.cut(draftedBox(binSocketCutterX(p, f.w, c), p, 0, f.h));
   }
   return body.fuse(ledge);
 }
@@ -200,6 +201,11 @@ function buildLid(p: ParamValues, forSeat = false): Shape3D {
   // Entry-edge notches: the -Y wall's interlock sockets run the full height of
   // the bin, so the nose has to be slotted at each width-module centre or it
   // caps them and a neighbouring bin's rib can no longer plug in.
+  //
+  // Deliberately NOT drafted like the socket it clears: this is relief, not
+  // registration. A straight socketWidth cut equals the drafted socket at its
+  // widest (the wall face) and is wider everywhere deeper, so it can never
+  // shadow the slot.
   const { socketWidth } = interlockDims(p, p.wallBump);
   for (const c of moduleCenters(p.widthModules, p.gridSpacing)) {
     lid = lid.cut(box(socketWidth, noseDepth + 1, f.zBottom - 2, f.zTop + 1, c, noseCentre));
@@ -268,7 +274,7 @@ export const binWithLid: ModelDef = {
   groups: [
     { title: "Basic dimensions", collapsed: false, keys: ["widthModules", "lengthModules", "overallHeight", "wallThick", "floorThick", "clear", "pullTabHeight", "pullHoleLength", "lidPullHeight", "lidLabel"] },
     { title: "Advanced dimensions", collapsed: true, keys: ["lidThick", "lidClear", "lidLockOffset", "lidLockLength", "lidRailRadius", "lidPullFrontOffset", "lidPullWidth"] },
-    { title: "Module features", collapsed: true, keys: ["gridSpacing", "ribWidth", "wallBump"] },
+    { title: "Module features", collapsed: true, keys: ["gridSpacing", "ribWidth", "wallBump", "draftAngle"] },
   ],
   build(p) {
     const lid = buildLid(p);
