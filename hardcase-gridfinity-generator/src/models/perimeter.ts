@@ -428,27 +428,49 @@ function splitPieces(frame: Shape3D, p: ParamValues, wallInner: Shape3D): Shape3
   const xcEnd = (length / 2 + p.overallLength / 2) / 2; // end-cap border centre (X)
   const w = p.dovetailWidth;
   const depth = p.dovetailDepth;
-  const flare = depth * Math.tan((p.dovetailAngle * Math.PI) / 180);
-  const c = p.dovetailClear; // socket grown by this; tang stays nominal
+  const tanA = Math.tan(deg(p.dovetailAngle));
+  const secA = 1 / Math.cos(deg(p.dovetailAngle));
+  const c = p.dovetailClear; // socket offset by this; tang stays nominal
+  const wb = p.wallThick; // the bulkhead's thickness, and the fold's own
+  const OVERLAP = 2; // how far a profile's base sits inside its owning piece
   const big = Math.max(p.overallLength, p.overallWidth); // generous half-plane bound
 
-  // Dovetail trapezoid crossing a seam. `axis` is the direction the tang
+  /** Seam-local (along-axis, across-axis) to model (x, y). */
+  const pt = (axis: "X" | "Y", a: number, b: number): [number, number] =>
+    axis === "X" ? [a, b] : [b, a];
+
+  // Dovetail profile crossing a seam. `axis` is the direction the tang
   // protrudes (and along which the joint locks): "X" for a seam cutting a long
   // rail, "Y" for one cutting an end cap. `pos` is the seam coordinate on that
-  // axis, `band` the centre coordinate on the other axis, `dir` = ±1 the
-  // protrusion direction. The base sits 2 mm inside the owning segment so the
-  // fuse overlaps with no coincident-face sliver; the flared tip locks it.
-  // `grow` enlarges it into a socket (tip and both flanks) by the joint gap.
-  const seamTang = (axis: "X" | "Y", pos: number, band: number, dir: 1 | -1, grow = 0): Drawing => {
-    const a0 = pos - dir * 2;
-    const a1 = pos + dir * (depth + grow);
-    const hw = w / 2 + grow;
-    const hwTip = w / 2 + flare + grow;
-    const pt = (a: number, b: number): [number, number] => (axis === "X" ? [a, b] : [b, a]);
-    return draw(pt(a0, band - hw))
-      .lineTo(pt(a0, band + hw))
-      .lineTo(pt(a1, band + hwTip))
-      .lineTo(pt(a1, band - hwTip))
+  // axis, `band` the centre coordinate on the other axis, `dir` = +/-1 the
+  // protrusion direction.
+  //
+  // A hexagon, not a trapezoid: behind the seam plane it is a constant-width
+  // rectangle, and only past the seam does the flank rise at tan(angle). That
+  // is what makes `dovetailAngle` the true flank angle and `dovetailWidth` the
+  // true width at the seam plane. An earlier trapezoid ran the flare across
+  // the base overlap as well, flattening the flank to 22.4 deg at the
+  // defaults. The base sits OVERLAP inside the owning piece so the fuse
+  // overlaps with no coincident-face sliver; the flared tip is what locks.
+  //
+  // `d` is a SIGNED PERPENDICULAR offset, which is what makes `dovetailClear`
+  // a real normal gap: offsetting a flank by `d` moves it `d * secA` across the
+  // band, while the tip face moves `d` along the axis. The base face does not
+  // move -- it lives inside the owning piece and exists only to avoid that
+  // sliver.
+  const seamProfile = (axis: "X" | "Y", pos: number, band: number, dir: 1 | -1, d = 0): Drawing => {
+    const hwBase = w / 2 + d * secA;
+    const reach = depth + d;
+    const hwTip = hwBase + reach * tanA;
+    const a0 = pos - dir * OVERLAP;
+    const a1 = pos + dir * reach;
+    const q = (a: number, b: number) => pt(axis, a, b);
+    return draw(q(a0, band - hwBase))
+      .lineTo(q(a0, band + hwBase))
+      .lineTo(q(pos, band + hwBase))
+      .lineTo(q(a1, band + hwTip))
+      .lineTo(q(a1, band - hwTip))
+      .lineTo(q(pos, band - hwBase))
       .close();
   };
   const rect = (x0: number, x1: number, y0: number, y1: number): Drawing =>
@@ -505,7 +527,7 @@ function splitPieces(frame: Shape3D, p: ParamValues, wallInner: Shape3D): Shape3
    *     leave part of it open. Everything inboard of the cavity wall is removed
    *     by channelSolid's own cavity cut, and the half-plane cannot reach the
    *     opposite rail.
-   *   - the socket footprint dilated by one wall thickness, `seamTang(...,
+   *   - the socket footprint dilated by one wall thickness, `seamProfile(...,
    *     dovetailClear + wallThick)`. It contains the tang footprint (so the tang
    *     piece gets a solid prism) and stands `wallThick` off the slot on both
    *     flanks and at its far end (so the socket piece gets flanks and the tang
@@ -514,7 +536,6 @@ function splitPieces(frame: Shape3D, p: ParamValues, wallInner: Shape3D): Shape3
    * A collar wider than the channel is trimmed, not clamped — a dovetail wider
    * than the border just merges into the walls, which is if anything stronger.
    */
-  const wb = p.wallThick;
   const seams: Seam[] = [];
   for (const sy of [1, -1] as const) {
     // Corner joints: the rail owns the tang and it protrudes outward into the cap.
@@ -535,7 +556,7 @@ function splitPieces(frame: Shape3D, p: ParamValues, wallInner: Shape3D): Shape3
     return axis === "X" ? rect(pos - wb, pos + wb, b0, b1) : rect(b0, b1, pos - wb, pos + wb);
   };
   const footprint = seams
-    .map((s) => web(s).fuse(seamTang(s.axis, s.pos, s.band, s.dir, c + wb)))
+    .map((s) => web(s).fuse(seamProfile(s.axis, s.pos, s.band, s.dir, c + wb)))
     .reduce((a, b) => a.fuse(b));
   const joined = frame.fuse(channelSolid(p, wallInner, footprint));
 
@@ -563,8 +584,8 @@ function splitPieces(frame: Shape3D, p: ParamValues, wallInner: Shape3D): Shape3
       axis === "X" ? rect(a0, a1, -big, big) : rect(-big, big, a0, a1);
     return Array.from({ length: n }, (_, i) => {
       let region = seg(bounds[i], bounds[i + 1]);
-      if (i < n - 1) region = region.fuse(seamTang(axis, cuts[i], band, 1)); // male tang past the far seam
-      if (i > 0) region = region.cut(seamTang(axis, cuts[i - 1], band, 1, c)); // socket at the near seam
+      if (i < n - 1) region = region.fuse(seamProfile(axis, cuts[i], band, 1)); // male tang past the far seam
+      if (i > 0) region = region.cut(seamProfile(axis, cuts[i - 1], band, 1, c)); // socket at the near seam
       return body.clone().intersect(solid(region));
     });
   };
@@ -580,8 +601,8 @@ function splitPieces(frame: Shape3D, p: ParamValues, wallInner: Shape3D): Shape3
     const y0 = sy > 0 ? 0 : -big;
     const y1 = sy > 0 ? big : 0;
     const region0 = rect(-splitX, splitX, y0, y1)
-      .fuse(seamTang("X", splitX, sy * yc, 1))
-      .fuse(seamTang("X", -splitX, sy * yc, -1));
+      .fuse(seamProfile("X", splitX, sy * yc, 1))
+      .fuse(seamProfile("X", -splitX, sy * yc, -1));
     const kind = sy > 0 ? "groove" : "rib";
     const rail = applyGridFeatures(div(joined.clone().intersect(solid(region0)), sy), p, wallSpec("Y", sy, kind));
     return sliceSegments(rail, "X", nLong, cutsLong, sy * yc);
@@ -594,8 +615,8 @@ function splitPieces(frame: Shape3D, p: ParamValues, wallInner: Shape3D): Shape3
     const x1 = ex > 0 ? big : -splitX;
     const kind = ex > 0 ? "rib" : "groove";
     const cap = applyGridFeatures(joined.clone().intersect(solid(rect(x0, x1, -big, big))), p, wallSpec("X", ex, kind))
-      .cut(solid(seamTang("X", ex * splitX, yc, ex, c)))
-      .cut(solid(seamTang("X", ex * splitX, -yc, ex, c)));
+      .cut(solid(seamProfile("X", ex * splitX, yc, ex, c)))
+      .cut(solid(seamProfile("X", ex * splitX, -yc, ex, c)));
     return sliceSegments(cap, "Y", nEnd, cutsEnd, ex * xcEnd);
   };
 

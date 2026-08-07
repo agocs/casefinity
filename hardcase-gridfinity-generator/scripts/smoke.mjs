@@ -63,7 +63,13 @@ const expected = {
   // change costs the rounded-corner perimeter, because a square cavity corner
   // reaches further out at the corner seams, leaving a narrower channel there
   // for the bulkhead to fill.
-  "perimeter-square-corners": { x: 350, y: 250, z: 110, volume: 846992 },
+  // The honest flank angle then ADDED 3265 (846992 -> 850257), which is two
+  // effects with opposite signs. The tang's neck narrows from 11.65 mm to
+  // dovetailWidth, taking material off; but the seam collar is now offset
+  // PERPENDICULAR to the flank rather than across the band, so a socket flank
+  // is a true wallThick thick where it used to be wallThick*cos(30 deg) =
+  // 2.60. Four seams' worth of thicker flanks outweighs four narrower necks.
+  "perimeter-square-corners": { x: 350, y: 250, z: 110, volume: 850257 },
   "bin-no-lid": { x: 46.3, y: 46.3, z: 115, volume: 28618, params: { ribWidth: 1.2, draftAngle: 0 } },
   // body + lid: plate flush with the rim, both rail beads, the lock swell, the
   // +X rail ledge, the finger scoop, the socket notches and the TOP engraving.
@@ -169,6 +175,9 @@ for (const model of models) {
 //   - no two pieces overlap. The socket is the tang grown by dovetailClear, so
 //     any interference means that clearance was lost and the parts will not
 //     assemble.
+//   - the profile is what the parameters say: flank angle = dovetailAngle,
+//     width at the seam plane = dovetailWidth, socket gap = dovetailClear
+//     measured perpendicular to the flank.
 console.log("perimeter full-height dovetail joints:");
 {
   const { drawRectangle } = await import("replicad");
@@ -236,6 +245,72 @@ console.log("perimeter full-height dovetail joints:");
       try { overlap += measureVolume(pieces[i].clone().intersect(pieces[j].clone())); } catch { /* disjoint */ }
     }
   check(overlap < 0.01, `no interference between pieces (${overlap.toFixed(3)} mm3)`);
+
+  // --- Profile geometry. Two properties the parameters claim and the old
+  // trapezoid did not deliver: the flank makes exactly `dovetailAngle` with
+  // the seam axis, and `dovetailWidth` is the tang's width AT THE SEAM PLANE.
+  // The old profile ran from pos-2 to pos+depth but flared by only
+  // depth*tan(A) across that whole run, so at the defaults the flank came out
+  // at 22.4 deg (tan 0.4126) where the parameter said 30, and the neck
+  // measured 11.65 mm where it said 10. The TIP half-width was and stays
+  // w/2 + depth*tan(A) -- which is why no bounding box moves.
+  //
+  // Measured on the RAIL piece: past the seam plane a rail carries nothing but
+  // its tang, so the outermost y of a thin x-sliver IS the flank. Taken over
+  // 10 mm of height at mid-frame, where the tang is ~0.8 mm clear of the
+  // tapered outer wall, so nothing clips it.
+  const rail = pieces.find((s) => s.boundingBox.bounds[0][1] > 0); // the +Y long rail
+  const cap = pieces.find((s) => s.boundingBox.bounds[1][0] > p.overallLength / 2 - 1); // +X end cap
+
+  // Tang half-width at x. The sliver ENDS at x and maxY picks its far edge, so
+  // the reading is the flank exactly at x.
+  const tangHalfWidthAt = (x) => {
+    const tool = drawRectangle(0.5, 40).translate(x - 0.25, yc).sketchOnPlane("XY", 50).extrude(10);
+    const { vertices } = rail.clone().intersect(tool).mesh({ tolerance: 0.01, angularTolerance: 5 });
+    let maxY = -Infinity;
+    for (let i = 1; i < vertices.length; i += 3) maxY = Math.max(maxY, vertices[i]);
+    return maxY - yc;
+  };
+  // Socket half-width at x: the cap's nearest material above the band centre.
+  // The sliver STARTS at x and the socket widens outward, so minY reads at x.
+  const socketHalfWidthAt = (x) => {
+    const tool = drawRectangle(0.5, 20).translate(x + 0.25, yc + 10).sketchOnPlane("XY", 50).extrude(10);
+    const { vertices } = cap.clone().intersect(tool).mesh({ tolerance: 0.01, angularTolerance: 5 });
+    let minY = Infinity;
+    for (let i = 1; i < vertices.length; i += 3) minY = Math.min(minY, vertices[i]);
+    return minY - yc;
+  };
+
+  const hw2 = tangHalfWidthAt(splitX + 2);
+  const hw4 = tangHalfWidthAt(splitX + 4);
+  const slope = (hw4 - hw2) / 2;
+  const neck = 2 * (hw2 - 2 * slope);
+  const wantSlope = Math.tan((p.dovetailAngle * Math.PI) / 180);
+  check(
+    Math.abs(slope - wantSlope) < 0.01,
+    `flank angle equals dovetailAngle (tan ${slope.toFixed(4)} vs ${wantSlope.toFixed(4)}; was 0.4126)`,
+  );
+  check(
+    Math.abs(neck - p.dovetailWidth) < 0.05,
+    `tang is dovetailWidth at the seam plane (${neck.toFixed(3)} vs ${p.dovetailWidth}; was 11.650)`,
+  );
+  // The tip must NOT move: it is what fixes the tang's reach and the bbox.
+  const wantTip = p.dovetailWidth + 2 * p.dovetailDepth * wantSlope;
+  const tipWidth = 2 * tangHalfWidthAt(splitX + p.dovetailDepth);
+  check(
+    Math.abs(tipWidth - wantTip) < 0.05,
+    `tang tip width unchanged (${tipWidth.toFixed(3)} vs ${wantTip.toFixed(3)})`,
+  );
+  // dovetailClear is a PERPENDICULAR gap: the socket is the tang offset normal
+  // to each face, so the flank gap is c*sec(A). The old profile widened the
+  // socket across the band AND stretched its flank over a longer run, which
+  // left 0.154 mm where 0.2 was nominally asked for.
+  const gap = socketHalfWidthAt(splitX + 2) - hw2;
+  const wantGap = p.dovetailClear / Math.cos((p.dovetailAngle * Math.PI) / 180);
+  check(
+    Math.abs(gap - wantGap) < 0.02,
+    `dovetailClear is a perpendicular gap (${gap.toFixed(3)} vs ${wantGap.toFixed(3)}; was 0.154)`,
+  );
 }
 
 // ---------------------------------------------------------------------------
