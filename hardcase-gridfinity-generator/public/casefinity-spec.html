@@ -609,9 +609,10 @@ drift lever <code>n·P/2</code>.</li>
 clearance analysed here. Each seam is closed by a <strong>bulkhead</strong> filling the
 U-channel cross-section, <code>WALL_THICK</code> either side of the seam plane and running
 the frame&#39;s full height, with the dovetail through it as a <strong>vertical prism</strong> —
-a solid tang on one piece, a slot grown by <code>BOARDER_DOVETAIL_CLEAR</code> on the
-other. Pieces therefore assemble by sliding together <strong>vertically</strong>, and the
-joint constrains both in-plane axes over the full height; vertical separation is
+a tang folded to <code>WALL_THICK</code> on one piece, not solid, and a matching slot grown
+by <code>BOARDER_DOVETAIL_CLEAR</code> on the other. Pieces therefore assemble by sliding
+together <strong>vertically</strong>, and the joint constrains both in-plane axes over the
+full height; vertical separation is
 unconstrained by design (it is the assembly direction, and the case retains the
 frame). All of this is liner-internal: it consumes only border material outboard
 of the cavity wall, so it changes no interface dimension and <code>WALL_THICK</code> stays
