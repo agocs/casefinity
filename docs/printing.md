@@ -71,7 +71,10 @@ thickness either side of the seam, running the full height of the frame. The
 dovetail runs through it as a **vertical prism**: a tang on one piece, a
 matching slot on the other. The tang is **folded to one wall thickness**, not
 solid — the same ribbon of wall as the rest of the frame, which is what the
-original design does. So a thin-walled frame never buries a solid slug in the
+original design does. It is a genuine fold rather than a hollow box: the
+bulkhead is slit along the dovetail's centreline and the sheet drawn out
+through it, so the tang's inside is continuous with the frame's own hollow.
+So a thin-walled frame never buries a solid slug in the
 middle of a seam, and a seam costs materially less filament the thinner the
 wall — at the original 1.2 mm liner thickness the fold removes about 3% of
 the model's volume; at the shipped 3 mm default, where the tang's neck starts

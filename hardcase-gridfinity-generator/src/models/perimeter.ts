@@ -474,33 +474,28 @@ function splitPieces(frame: Shape3D, p: ParamValues, wallInner: Shape3D): Shape3
       .close();
   };
 
-  // The tang's void. `seamProfile` eroded by one wall thickness, with its base
-  // face ON the seam plane rather than at the base overlap: the piece's end web
-  // occupies [pos - wb, pos] and has to survive as the fold's back wall, so the
-  // hollow starts where that web ends. Cutting this from the seam bulkheads is
-  // what turns a solid dovetail prism into a wall-thickness fold -- which is
-  // what the ground truth does (its rail shows two 1.2 mm flanks and nothing
-  // between them across the tang band) and what a thin-walled frame obviously
-  // wants: at wallThick 1.2 the solid tang was a 110 x 14 x 5 mm slug hanging
-  // off a 1.2 mm ribbon.
+  // The tang's void: the very same profile, offset inward by one wall thickness.
+  // Cutting it from the seam bulkheads is what turns a solid dovetail prism into
+  // a fold, and taking it from `seamProfile` rather than building a second shape
+  // is what makes "one wall thick everywhere" structural instead of arithmetical.
+  //
+  // The void runs the profile's WHOLE length, base overlap included, so it opens
+  // into the channel behind the seam. The tang is therefore a folded sheet --
+  // two flanks and a tip face, closed at the bottom by the fillet-narrowed
+  // channel and open at the back -- not a closed box with the end web as its
+  // lid. That is what the ground truth does: at mid-height its rail's end web
+  // carries a slot on the dovetail centreline (~1.5 mm at the web, widening to
+  // 5.5 mm one millimetre out) rather than bridging across. A fold that sealed
+  // itself off at the narrow end would be a drawn pocket, not a fold.
   //
   // Returns null once the erosion eats the profile: past that thickness there
-  // is no core to remove and the tang is simply solid -- no caller branch, no
+  // is no void to remove and the tang is simply solid -- no caller branch, no
   // new parameter. Both degeneracies are checked: the flanks meeting in the
   // middle, and the tip face reaching back past the seam plane.
-  const seamCore = (axis: "X" | "Y", pos: number, band: number, dir: 1 | -1): Drawing | null => {
-    const hwBase = w / 2 - wb * secA;
-    const reach = depth - wb;
-    if (hwBase < 0.05 || reach < 0.05) return null;
-    const hwTip = hwBase + reach * tanA;
-    const a1 = pos + dir * reach;
-    const q = (a: number, b: number) => pt(axis, a, b);
-    return draw(q(pos, band - hwBase))
-      .lineTo(q(pos, band + hwBase))
-      .lineTo(q(a1, band + hwTip))
-      .lineTo(q(a1, band - hwTip))
-      .close();
-  };
+  const seamCore = (axis: "X" | "Y", pos: number, band: number, dir: 1 | -1): Drawing | null =>
+    w / 2 - wb * secA < 0.05 || depth - wb < 0.05
+      ? null
+      : seamProfile(axis, pos, band, dir, -wb);
   const rect = (x0: number, x1: number, y0: number, y1: number): Drawing =>
     drawRectangle(x1 - x0, y1 - y0).translate((x0 + x1) / 2, (y0 + y1) / 2);
   const solid = (d: Drawing): Shape3D =>
@@ -540,10 +535,17 @@ function splitPieces(frame: Shape3D, p: ParamValues, wallInner: Shape3D): Shape3
    * any per-piece region intersect, so the existing region algebra divides it:
    *
    *   tang piece   region = halfplane u tangFootprint
-   *                -> end web + a dovetail folded to wallThick
+   *                -> end web, slit on the dovetail centreline, with the tang
+   *                   folded out of the slit to wallThick
    *   socket piece region = halfplane - grownTang
    *                -> end web pierced by the dovetail mouth, plus flanks and a
    *                   back for the slot
+   *
+   * BOTH webs are pierced, then, and symmetrically: the tang's fold opens back
+   * through its own web into the channel (seamCore runs the profile's whole
+   * length), and the socket's mouth opens forward through its web into the slot.
+   * The seam is still closed — by the folded box the tang forms rather than by a
+   * flat plate across it.
    *
    * Two flat 2-D pieces per seam are enough, because channelSolid trims them to
    * the wall profile:
@@ -595,13 +597,16 @@ function splitPieces(frame: Shape3D, p: ParamValues, wallInner: Shape3D): Shape3
   // rather than `joined` confines the cut to the channel's own material, so it
   // can never reach the frame's actual walls or floor (channelSolid is
   // strictly the hollow between them). The floor itself rarely reaches the
-  // fold -- see :49-51 for the same fact at the corners -- so it is not what
-  // closes it. What does, at the shipped bottom-corner radius, is that same
-  // fillet: it narrows the channel below the eroded band (around z ~= 2.9 mm)
-  // until there is no bulkhead material left for seamCore to remove, so the
-  // tang comes out solid there and the fold is a blind pocket, closed at the
-  // bottom and open at the top, with a floor steeper than 30 deg -- it prints
-  // without support and still assembles by sliding down.
+  // fold -- the same measurement quoted in this file's header, that the bottom
+  // fillet pulls the outer footprint inboard of the corner tang band -- so it
+  // is not what closes the fold at the bottom. What does, at the shipped
+  // bottom-corner radius, is that same fillet: it narrows the channel below the
+  // eroded band (around z ~= 2.9 mm) until there is no bulkhead material left
+  // for seamCore to remove, so the tang comes out solid there. The fold is
+  // therefore closed at the bottom and open at the top, on a floor steeper than
+  // 30 deg -- it prints without support and still assembles by sliding down.
+  // Open at the BACK too, into the channel, which is what makes it a fold
+  // rather than a pocket; see seamCore.
   // The socket piece's region already subtracts the clearance-grown tang, so it
   // never owned the material being removed here and needs no change.
   const bulkheads = channelSolid(p, wallInner, footprint);

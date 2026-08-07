@@ -62,10 +62,20 @@ the ~25 mm border ⇒ ~25 mm²/mm, matching 19.42 over 0.8 mm and 10.86 over
 i.e. a 1.2 mm end wall about 7.7 mm wide — and, behind it at x 30…32.6, just
 2.77 mm²/mm: two 1.2 mm flanks and nothing between them, against 2.40 mm²/mm for
 the plain U-channel further along (its two walls). **The tang is hollow**: the
-bulkhead sheet folds out into a dovetail outline and folds back, and the void is
-closed behind by the bulkhead itself. Rendering the section confirms it, and it
-matches the photograph of a printed reference piece: one continuous ribbon of
-wall, no solid dovetail anywhere in the design.
+bulkhead sheet folds out into a dovetail outline and folds back. Rendering the
+section confirms it, and it matches the photograph of a printed reference piece:
+one continuous ribbon of wall, no solid dovetail anywhere in the design.
+
+**The fold is open at its narrow end**, which the table above cannot show and an
+earlier revision of this spec got backwards. Integrating material across the
+whole border at x = 33 gives ~24.3 mm of a ~25 mm span — consistent with an
+unbroken bulkhead, and wrong. Profiling that station cell by cell along z shows
+a slot on the dovetail centreline (z ≈ −14.5…−13.0): 1.5 mm at the web, widening
+to 2.5 mm at x = 32, 4.5 at x = 31, 5.5 at x = 30. The sheet is slit and drawn
+out, so the dovetail's interior is continuous with the channel behind it. A
+1.5 mm gap inside a 25 mm total is invisible to an integrated measurement, and
+the arithmetic agreeing with the assumption is what stopped the first reading
+looking further.
 
 The cap's socket is the same fold inward, which the port already reproduces —
 the collar gives the socket `wallThick` flanks and a `wallThick` back, measured
@@ -74,13 +84,23 @@ at 6.5 mm²/mm of flank at `wallThick` 3 and 2.4 at 1.2.
 ## Requirements
 
 - **REQ-1** The tang is a fold of thickness `wallThick`, not a solid prism: its
-  footprint is eroded by `wallThick` and the core removed, leaving flanks, a tip
-  and a back wall each one wall thick.
-- **REQ-2** The fold's back wall is the seam's own end web, so the joint keeps a
-  single continuous `wallThick` bulkhead rather than gaining a second skin.
-- **REQ-3** The fold is closed at the bottom by the frame's floor and open at
-  the top, so it prints without support and assembles by sliding down — the
-  existing assembly direction is unchanged.
+  footprint is offset inward by `wallThick` and the void removed, leaving two
+  flanks and a tip face, each one wall thick.
+- **REQ-2** The void runs the profile's **whole** length, base overlap included,
+  so it slits the seam's end web on the dovetail centreline and opens into the
+  channel behind. The tang is a folded sheet, not a closed box with the web as
+  its lid — matching the ground truth's slotted web. *(Amended 2026-08-07: this
+  requirement previously said the opposite — that the web must survive intact as
+  the fold's back wall — on a misreading of the ground truth. See "What the
+  ground truth does" above.)*
+- **REQ-3** The fold is closed at the bottom and open at the top, so it prints
+  without support and assembles by sliding down — the existing assembly
+  direction is unchanged. *(Amended 2026-08-07: this said "closed at the bottom
+  by the frame's floor". At the shipped defaults the floor does not reach the
+  corner tang band at all — the bottom fillet pulls the outer footprint inboard
+  of it. What closes the fold is that same fillet narrowing the channel until
+  there is no bulkhead material left to hollow, around z ≈ 2.9 mm. The outcome
+  holds; only the stated mechanism was wrong.)*
 - **REQ-4** Where the erosion degenerates the tang stays solid, with no special
   case in the caller and no new parameter. This is what makes the shipped 3 mm
   default behave sensibly: the core is ~8.5 mm² there and vanishes entirely for
@@ -131,19 +151,21 @@ tip at 15.77 mm.
 
 ### The fold
 
-The core is the same shape eroded by `wallThick`, with its base face **on the
-seam plane** rather than at `a0` — the piece's end web occupies
-`[pos − wallThick, pos]` and must survive as the fold's back wall (REQ-2):
+The void is the very same profile at `d = −wallThick`:
 
 ```
-hwB_core = w/2 − wallThick * secA
-a1_core  = pos + dir * (depth − wallThick)
-hwT_core = hwB_core + (depth − wallThick) * tanA
+seamCore(axis, pos, band, dir) = seamProfile(axis, pos, band, dir, −wallThick)
 ```
 
-a plain trapezoid from `(pos, band ± hwB_core)` to `(a1_core, band ± hwT_core)`.
-Skip the seam's core when `depth − wallThick < 0.05` or `hwB_core < 0.05` —
-that is REQ-4's degeneracy, and the tang comes out solid with no branch in the
+That is the whole construction. Because the void comes from `seamProfile` rather
+than a second hand-built shape, "one wall thick everywhere" is structural — it
+holds by definition at every station and every parameter value, not because a
+few probes agree. And because the profile includes its base overlap, the void
+extends behind the seam plane and slits the end web, which is REQ-2.
+
+Skip the seam's void when `depth − wallThick < 0.05` or
+`w/2 − wallThick · secA < 0.05` — that is REQ-4's degeneracy, and the tang comes
+out solid with no branch in the
 caller.
 
 ### Where the cut lands
@@ -164,8 +186,9 @@ joined    = frame.fuse(cores ? bulkheads.cut(solid(cores)) : bulkheads)
 
 Three things follow for free:
 
-- The floor lives in `frame` and is fused after the cut, so it closes the fold
-  at the bottom (REQ-3).
+- The frame is fused after the cut, so nothing the cut removed can reopen a
+  wall or the floor. The fold's own bottom closure comes from the bottom fillet
+  narrowing the channel out of existence below z ≈ 2.9 mm (REQ-3).
 - `channelSolid` returns strictly the hollow between the two walls, so the cut
   cannot reach the frame's own walls.
 - The socket piece's region already subtracts the clearance-grown tang, so it

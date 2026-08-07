@@ -181,8 +181,28 @@ Reading the rail: the bulkhead sits at x ≈ 32.6..33.8 (1.2 mm across the
 face at x 28.79..29.99 reads 9.19 mm²/mm — a 1.2 mm wall about 7.7 mm wide —
 and behind it, at x 30..32.6, only 2.77 mm²/mm: two 1.2 mm flanks and nothing
 between them. Therefore the tang is hollow: the bulkhead sheet folds out into
-the dovetail outline and folds back, closed behind by the bulkhead itself. The
-port now reproduces this via `seamCore`. See
+the dovetail outline and folds back.
+
+**The fold is also open at its narrow end**, and this table cannot show it —
+which is worth recording, because the first reading of these numbers concluded
+the opposite. Integrating material across the whole border at x = 33 gives
+~24.3 mm of a ~25 mm span, which looks like an unbroken bulkhead and is not.
+Profiling the same station cell by cell along z instead reveals a slot on the
+dovetail centreline (z ≈ −14.5..−13.0), 1.5 mm wide at the web and widening
+outward — 2.5 mm at x = 32, 4.5 at x = 31, 5.5 at x = 30. The sheet is slit and
+drawn out; the dovetail's interior is continuous with the channel behind it. A
+1.5 mm gap inside a 25 mm total is invisible to an integrated measurement, and
+the arithmetic agreeing with the assumption is what stopped the first reading
+looking further. **When a section total matches expectation, that is not
+evidence the section has no holes in it** — profile the axis you are
+integrating over.
+
+The port reproduces both properties via `seamCore`, whose void runs the
+profile's whole length rather than stopping at the seam plane. Its slot is wider
+than the original's (a constant `dovetailWidth − 2·wallThick·sec(angle)`, ≈7.2 mm
+at a 1.2 mm wall) because the port's profile holds constant width behind the
+seam plane to keep `dovetailAngle` honest, where the original's pure trapezoid
+keeps flaring and so pinches its own void shut. See
 `docs/superpowers/specs/2026-08-07-folded-dovetail-tang-design.md`.
 
 **Dividers** (`BOARDER_DIVIDERS`) are sparse full-height ribs that fill the

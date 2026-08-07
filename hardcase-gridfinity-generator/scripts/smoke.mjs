@@ -73,8 +73,13 @@ const expected = {
   // to about 2.0 mm at the tip. Four seams' worth of thicker flanks outweighs
   // four narrower necks.
   // Folding the tangs then removed 3546 (850257 -> 846711): four seam
-  // dovetails hollowed to one wall thickness.
-  "perimeter-square-corners": { x: 350, y: 250, z: 110, volume: 846711 },
+  // dovetails hollowed to one wall thickness. Opening the folds at their narrow
+  // end removed a further 2579 (846711 -> 844132): the void runs the profile's
+  // whole length, so it slits each end web on the dovetail centreline instead
+  // of stopping at it. That is what the ground truth does -- its rail's web
+  // carries a ~1.5 mm slot there, which an earlier reading of this model missed
+  // by integrating material across the whole border and never looking for a gap.
+  "perimeter-square-corners": { x: 350, y: 250, z: 110, volume: 844132 },
   "bin-no-lid": { x: 46.3, y: 46.3, z: 115, volume: 28618, params: { ribWidth: 1.2, draftAngle: 0 } },
   // body + lid: plate flush with the rim, both rail beads, the lock swell, the
   // +X rail ledge, the finger scoop, the socket notches and the TOP engraving.
