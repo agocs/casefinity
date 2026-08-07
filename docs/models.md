@@ -63,8 +63,8 @@ per long side.
 **Module features** (collapsed) — Grid spacing, Grid bump, Grid bump width, Bump
 draft.
 
-**Printer convenience** (expanded) — Split into pieces, Printer bed width
-(0 = no limit), Printer bed depth (0 = no limit), Bed margin (per side), and a
+**Printer convenience** (expanded) — Split into pieces (a checkbox), Printer bed
+width (0 = no limit), Printer bed depth (0 = no limit), Bed margin (per side), and a
 *Dovetails* subsection: Dovetail width, Dovetail depth, Dovetail angle, Dovetail
 clearance.
 
@@ -79,6 +79,12 @@ spacing, Grid bump width, Rib depth, Bump draft. They all share these **Basic
 dimensions** (expanded): Width (modules), Length (modules), Height, Wall
 thickness, Floor thickness, Clearance, Pull tab height, Pull slot length, Pull
 slot height.
+
+The two module counts render as narrow inputs with a live `= NN mm` annotation
+beside them (module count × grid spacing), so the footprint a count buys is
+visible without opening **Module features** to read the grid spacing. The
+printed footprint is 2 × Clearance smaller than the figure shown — the hint
+reports the grid extent, not the part.
 
 ### Bin (no lid)
 

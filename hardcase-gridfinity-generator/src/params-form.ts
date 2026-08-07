@@ -1,10 +1,17 @@
 import type { ModelDef, ParamDef, ParamValues } from "./models";
 
-/** Render a single param input (text, number, or checkbox). */
+/**
+ * Render a single param input (text, number, or checkbox). A param carrying a
+ * `hint` pushes a refresher onto `hints`: hints can depend on other params
+ * (modules × grid spacing), so they are re-run on every edit rather than only
+ * when their own input changes — and without a re-render, which would steal
+ * focus mid-keystroke.
+ */
 function renderParam(
   param: ParamDef,
   values: Record<string, unknown>,
   onChange: () => void,
+  hints: Array<() => void>,
 ): HTMLElement {
   const label = document.createElement("label");
   label.className = "field";
@@ -62,6 +69,23 @@ function renderParam(
     values[param.key] = v;
     onChange();
   });
+
+  if (param.hint) {
+    const { hint } = param;
+    const note = document.createElement("em");
+    note.className = "field-hint";
+    const refresh = () => {
+      note.textContent = hint(values as ParamValues);
+    };
+    refresh();
+    hints.push(refresh);
+    const row = document.createElement("div");
+    row.className = "field-row";
+    row.append(input, note);
+    label.append(caption, row);
+    return label;
+  }
+
   label.append(caption, input);
   return label;
 }
@@ -79,6 +103,8 @@ export function renderParamsForm(
   // across re-renders so the dropdown keeps showing the chosen preset.
   let selectedPreset = "";
   let presetSelect: HTMLSelectElement | null = null;
+  // Refreshers for the live hints of the currently rendered inputs.
+  let hints: Array<() => void> = [];
 
   // A hand edit means the values no longer match a named preset, so drop the
   // dropdown back to "— Custom —" (without a full re-render — that would steal
@@ -88,11 +114,13 @@ export function renderParamsForm(
       selectedPreset = "";
       presetSelect.value = "";
     }
+    for (const refresh of hints) refresh();
     onChange({ ...values });
   };
 
   const render = () => {
     form.innerHTML = "";
+    hints = [];
     const grouped = new Set<string>();
 
     // Presets dropdown (above sections)
@@ -147,7 +175,7 @@ export function renderParamsForm(
         for (const key of group.keys) {
           const param = paramMap.get(key);
           if (param) {
-            body.appendChild(renderParam(param, vals, onEdit));
+            body.appendChild(renderParam(param, vals, onEdit, hints));
             grouped.add(key);
           }
         }
@@ -159,7 +187,7 @@ export function renderParamsForm(
     // Render any params not in a group at the top
     for (const param of model.params) {
       if (!grouped.has(param.key)) {
-        form.appendChild(renderParam(param, vals, onEdit));
+        form.appendChild(renderParam(param, vals, onEdit, hints));
       }
     }
   };

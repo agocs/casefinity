@@ -56,7 +56,10 @@ orientation is winding-only.
   original Fusion 360 user parameter in
   [docs/f3d-parameters.md](../docs/f3d-parameters.md). A `ModelDef` may also
   declare optional `groups` (collapsible form sections, in display order) and
-  `presets` (a dropdown that fills in a set of values). See `src/models/types.ts`.
+  `presets` (a dropdown that fills in a set of values). An individual parameter
+  may carry a `hint(values)` — a live annotation rendered beside a narrowed
+  input, re-evaluated on every edit, so it can derive from other parameters (the
+  bins' `= NN mm` module conversion). See `src/models/types.ts`.
 - **`src/models/bin-common.ts`** — shared bin construction: `buildBinBody`,
   `binParams`, `box`, `moduleCenters`, `addInterlockRibs`, `addPullTab`.
 - **`src/models/registration.ts`** — the interlock interface dimensions, kept

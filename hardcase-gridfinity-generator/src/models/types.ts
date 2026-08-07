@@ -13,6 +13,13 @@ export interface ParamDef {
   min?: number;
   max?: number;
   step?: number;
+  /**
+   * Optional live annotation shown beside the input (e.g. a unit conversion for
+   * a count expressed in modules). Gets the whole value set, so it can read
+   * other params, and is re-evaluated on every edit — keep it cheap and pure.
+   * A param with a hint renders with a narrowed input to leave room for it.
+   */
+  hint?: (p: ParamValues) => string;
 }
 
 /**

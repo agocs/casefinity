@@ -75,8 +75,11 @@ body {
   opacity: 0.8;
 }
 
-/* --- Checkbox fields --- */
-.checkbox-field {
+/* --- Checkbox fields ---
+   Qualified with `.field` because the element carries both classes and the
+   generic `.field` rules further down would otherwise win on source order and
+   re-stack the box above its label. */
+.field.checkbox-field {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -92,7 +95,9 @@ body {
   cursor: pointer;
 }
 
-.checkbox-label {
+.field .checkbox-label {
+  display: inline;
+  margin-bottom: 0;
   font-size: 13px;
   color: #a8b0bc;
   cursor: pointer;
@@ -179,6 +184,26 @@ details[open] > .param-group-title::before {
   border: 1px solid #2c313a;
   border-radius: 4px;
   font-size: 13px;
+}
+
+/* A number input with a live hint beside it (e.g. modules -> mm): the input
+   shrinks to just its digits and the hint takes the freed width. Must follow
+   the `.field input` rule above — same specificity, so source order decides. */
+.field-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.field-row input {
+  width: 5.5em;
+  flex: none;
+}
+
+.field-hint {
+  color: #667;
+  font-style: normal;
+  white-space: nowrap;
 }
 
 #actions {
