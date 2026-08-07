@@ -1,6 +1,7 @@
 import { drawRoundedRectangle, drawRectangle, draw } from "replicad";
 import type { Shape3D, Sketch, Drawing } from "replicad";
 import type { ModelDef, ParamDef, ParamValues } from "./types.ts";
+import { boolParam } from "./types.ts";
 import { draftAngleParam, draftedProfile, gridCenters, interlockDims, ribWidthParam } from "./registration.ts";
 
 /**
@@ -634,7 +635,7 @@ export const perimeterParams: ParamDef[] = [
     { key: "frontBoarderBinAdd", fusionName: "FRONT_BOARDER_BIN_ADD", label: "Front border bins", default: 3, unit: "", min: 0, max: 10, step: 1 },
     { key: "footThick", label: "Floor thickness", default: 4, unit: "mm", min: 0.6, max: 6, step: 0.2 },
     { key: "dividers", fusionName: "BOARDER_DIVIDERS", label: "Dividers per long side", default: 4, unit: "", min: 0, max: 12, step: 1 },
-    { key: "split", label: "Split into pieces", default: 1, unit: "", min: 0, max: 1, step: 1 },
+    { key: "split", type: "boolean", label: "Split into pieces", default: true },
     { key: "bedWidth", label: "Printer bed width (0 = no limit)", default: 0, unit: "mm", min: 0, max: 1000, step: 1 },
     { key: "bedDepth", label: "Printer bed depth (0 = no limit)", default: 0, unit: "mm", min: 0, max: 1000, step: 1 },
     { key: "bedMargin", label: "Bed margin (per side)", default: 5, unit: "mm", min: 0, max: 30, step: 1 },
@@ -678,7 +679,9 @@ export function buildPerimeter(p: ParamValues): Shape3D | Shape3D[] {
     // otherwise apply them to the whole frame. `wallInner` goes along for the
     // ride: splitPieces needs it to carve the seam bulkheads out of the channel,
     // and rebuilding that loft is the single most expensive thing in the model.
-    if (p.split) return splitPieces(frame, p, wallInner);
+    // `split` is a checkbox in the UI but the analysis scripts pass 0/1, so read
+    // it through boolParam rather than trusting either representation.
+    if (boolParam(p, "split", true)) return splitPieces(frame, p, wallInner);
     // Dividers FIRST, grid features (grooves) LAST: a divider coincides in X
     // with a grid module centre by construction (dividerCenters draws from the
     // same set gridCenters does), so on the +Y/-X (groove) walls a divider's

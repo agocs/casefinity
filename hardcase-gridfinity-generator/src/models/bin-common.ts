@@ -65,10 +65,19 @@ export function binSocketCutterX(p: ParamValues, w: number, c: number): DraftedF
   return { axis: "X", from: w / 2 - p.wallBump, to: w / 2, face: w / 2, narrow: -1, width: socketWidth, at: c };
 }
 
+/**
+ * The nominal grid extent of a module count, for the form's live hint next to
+ * the (narrow) module inputs. The printed footprint is 2*CLEAR smaller — that
+ * shrink is a print clearance, not part of what a module *means*, so the hint
+ * reports the grid pitch the count buys.
+ */
+const moduleSpan = (key: string) => (p: ParamValues) =>
+  `= ${Number((p[key] * p.gridSpacing).toFixed(2))} mm`;
+
 /** Parameters shared by every bin variant. */
 export const binParams: ParamDef[] = [
-  { key: "widthModules", fusionName: "WIDTH_MODULE_NUMBER", label: "Width (modules)", default: 3, unit: "", min: 1, max: 20, step: 1 },
-  { key: "lengthModules", fusionName: "LENGTH_MODULE_NUMBER", label: "Length (modules)", default: 3, unit: "", min: 1, max: 20, step: 1 },
+  { key: "widthModules", fusionName: "WIDTH_MODULE_NUMBER", label: "Width (modules)", default: 3, unit: "", min: 1, max: 20, step: 1, hint: moduleSpan("widthModules") },
+  { key: "lengthModules", fusionName: "LENGTH_MODULE_NUMBER", label: "Length (modules)", default: 3, unit: "", min: 1, max: 20, step: 1, hint: moduleSpan("lengthModules") },
   { key: "gridSpacing", fusionName: "GRID_SPACING", label: "Grid spacing", default: 15, unit: "mm", min: 10, max: 50, step: 0.5 },
   { key: "overallHeight", fusionName: "OVERALL_HT", label: "Height", default: 110, unit: "mm", min: 20, max: 300, step: 1 },
   { key: "wallThick", fusionName: "WALL_THICK", label: "Wall thickness", default: 1.2, unit: "mm", min: 0.8, max: 3, step: 0.1 },
