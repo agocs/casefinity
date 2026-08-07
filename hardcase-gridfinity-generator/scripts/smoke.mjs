@@ -67,8 +67,11 @@ const expected = {
   // effects with opposite signs. The tang's neck narrows from 11.65 mm to
   // dovetailWidth, taking material off; but the seam collar is now offset
   // PERPENDICULAR to the flank rather than across the band, so a socket flank
-  // is a true wallThick thick where it used to be wallThick*cos(30 deg) =
-  // 2.60. Four seams' worth of thicker flanks outweighs four narrower necks.
+  // is a true wallThick thick where it used to vary along the flank -- the old
+  // collar wasn't even parallel to the old socket (slopes 0.283 vs 0.401), so
+  // the old effective thickness ran from about 2.6 mm near the seam plane down
+  // to about 2.0 mm at the tip. Four seams' worth of thicker flanks outweighs
+  // four narrower necks.
   // Folding the tangs then removed 3546 (850257 -> 846711): four seam
   // dovetails hollowed to one wall thickness.
   "perimeter-square-corners": { x: 350, y: 250, z: 110, volume: 846711 },

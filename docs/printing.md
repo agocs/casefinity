@@ -71,9 +71,12 @@ thickness either side of the seam, running the full height of the frame. The
 dovetail runs through it as a **vertical prism**: a tang on one piece, a
 matching slot on the other. The tang is **folded to one wall thickness**, not
 solid — the same ribbon of wall as the rest of the frame, which is what the
-original design does. So a seam costs little extra filament and never buries a
-solid slug in the middle of a thin-walled part. At heavy wall thicknesses the
-fold has nothing left to hollow and the tang is simply solid.
+original design does. So a thin-walled frame never buries a solid slug in the
+middle of a seam, and a seam costs materially less filament the thinner the
+wall — at the original 1.2 mm liner thickness the fold removes about 3% of
+the model's volume; at the shipped 3 mm default, where the tang's neck starts
+out narrower, it's closer to 0.4%. At heavy wall thicknesses the fold has
+nothing left to hollow and the tang is simply solid.
 
 `dovetailWidth` is the tang's width **at the seam plane**, and
 `dovetailAngle` is the true angle of its flank.

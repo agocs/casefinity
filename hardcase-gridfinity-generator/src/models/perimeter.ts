@@ -557,9 +557,9 @@ function splitPieces(frame: Shape3D, p: ParamValues, wallInner: Shape3D): Shape3
    *     opposite rail.
    *   - the socket footprint dilated by one wall thickness, `seamProfile(...,
    *     dovetailClear + wallThick)`. It contains the tang footprint (so the tang
-   *     piece gets a solid prism) and stands `wallThick` off the slot on both
-   *     flanks and at its far end (so the socket piece gets flanks and the tang
-   *     bottoms out against material).
+   *     piece gets the dovetail prism the fold is cut from) and stands
+   *     `wallThick` off the slot on both flanks and at its far end (so the
+   *     socket piece gets flanks and the tang bottoms out against material).
    *
    * A collar wider than the channel is trimmed, not clamped — a dovetail wider
    * than the border just merges into the walls, which is if anything stronger.
@@ -591,9 +591,17 @@ function splitPieces(frame: Shape3D, p: ParamValues, wallInner: Shape3D): Shape3
   const footprint = seams
     .map((s) => web(s).fuse(seamProfile(s.axis, s.pos, s.band, s.dir, c + wb)))
     .reduce((a, b) => a.fuse(b));
-  // Hollow the tangs BEFORE the frame is fused in: the floor lives in `frame`,
-  // so fusing afterwards closes the fold at the bottom and leaves it open at
-  // the top -- it prints without support and still assembles by sliding down.
+  // Hollow the tangs BEFORE the frame is fused in: cutting from `bulkheads`
+  // rather than `joined` confines the cut to the channel's own material, so it
+  // can never reach the frame's actual walls or floor (channelSolid is
+  // strictly the hollow between them). The floor itself rarely reaches the
+  // fold -- see :49-51 for the same fact at the corners -- so it is not what
+  // closes it. What does, at the shipped bottom-corner radius, is that same
+  // fillet: it narrows the channel below the eroded band (around z ~= 2.9 mm)
+  // until there is no bulkhead material left for seamCore to remove, so the
+  // tang comes out solid there and the fold is a blind pocket, closed at the
+  // bottom and open at the top, with a floor steeper than 30 deg -- it prints
+  // without support and still assembles by sliding down.
   // The socket piece's region already subtracts the clearance-grown tang, so it
   // never owned the material being removed here and needs no change.
   const bulkheads = channelSolid(p, wallInner, footprint);
