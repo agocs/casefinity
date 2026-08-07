@@ -69,7 +69,9 @@ const expected = {
   // PERPENDICULAR to the flank rather than across the band, so a socket flank
   // is a true wallThick thick where it used to be wallThick*cos(30 deg) =
   // 2.60. Four seams' worth of thicker flanks outweighs four narrower necks.
-  "perimeter-square-corners": { x: 350, y: 250, z: 110, volume: 850257 },
+  // Folding the tangs then removed 3546 (850257 -> 846711): four seam
+  // dovetails hollowed to one wall thickness.
+  "perimeter-square-corners": { x: 350, y: 250, z: 110, volume: 846711 },
   "bin-no-lid": { x: 46.3, y: 46.3, z: 115, volume: 28618, params: { ribWidth: 1.2, draftAngle: 0 } },
   // body + lid: plate flush with the rim, both rail beads, the lock swell, the
   // +X rail ledge, the finger scoop, the socket notches and the TOP engraving.
@@ -310,6 +312,70 @@ console.log("perimeter full-height dovetail joints:");
   check(
     Math.abs(gap - wantGap) < 0.02,
     `dovetailClear is a perpendicular gap (${gap.toFixed(3)} vs ${wantGap.toFixed(3)}; was 0.154)`,
+  );
+
+  // --- The fold. The tang is a wallThick shell, not a solid prism, so its
+  // section area must DEPEND on wallThick. Before this it was identical at 1.2
+  // and 3.0 -- 12.47 / 13.30 / 14.12 / 14.95 mm2 per mm of x at x = 143..146,
+  // in both cases exactly the nominal trapezoid width -- because the tang
+  // footprint was materialised solid and wallThick entered only the socket's
+  // collar. Section taken over x in [splitX+1, splitX+4], 10 mm of height at
+  // mid-frame. One extra build (~58 s); the 3.0 case reuses `pieces`.
+  //
+  // This block adds two full perimeter builds on top of the six the smoke
+  // suite already runs before it (perimeter, smooth-perimeter,
+  // perimeter-square-corners, plus this block's own `pieces`), and the OCCT
+  // WASM heap is hard-capped at 2 GiB (compiled into replicad_single.wasm's
+  // memory section, not runtime-configurable) — see scaling-test.mjs's own
+  // "heap is small; leaks abort later builds" comment for the same ceiling
+  // hit before. `built`, the tool solid, the clone and the intersection
+  // result are all deleted as soon as they are measured so this block doesn't
+  // add to the pile; `globalThis.gc?.()` after each heavy build forces the
+  // FinalizationRegistry to run promptly, since V8 can't otherwise sense WASM
+  // heap pressure from the small JS wrapper objects (matches scaling-test.mjs).
+  //
+  // A single `globalThis.gc?.()` marks the abandoned wrappers unreachable but
+  // V8 doesn't guarantee the FinalizationRegistry callbacks that actually free
+  // the WASM side run within that same synchronous call — they're scheduled
+  // as a task, so a build immediately following a bare gc() can still start
+  // before the previous one's memory is actually released. Yielding once
+  // (setImmediate) lets that task run, then a second gc() sweeps whatever the
+  // first pass turned up.
+  const yieldTick = () => new Promise((resolve) => setImmediate(resolve));
+  const sectionOf = async (built, x0, dx) => {
+    const r = built.find((s) => s.boundingBox.bounds[0][1] > 0);
+    const tool = drawRectangle(dx, 40).translate(x0 + dx / 2, yc).sketchOnPlane("XY", 50).extrude(10);
+    const clone = r.clone();
+    const piece = clone.intersect(tool);
+    const volume = measureVolume(piece);
+    piece.delete();
+    clone.delete();
+    tool.delete();
+    built.forEach((s) => s.delete());
+    globalThis.gc?.();
+    await yieldTick();
+    globalThis.gc?.();
+    return volume;
+  };
+  const thick = await sectionOf(pieces, splitX + 1, 3);
+  const thin = await sectionOf(model.build({ ...p, wallThick: 1.2 }), splitX + 1, 3);
+  check(
+    thin < thick * 0.5,
+    `tang folds to wallThick (section ${thin.toFixed(0)} mm3 at 1.2 vs ${thick.toFixed(0)} at 3.0; ` +
+      `both were 387 before)`,
+  );
+
+  // Degeneracy (spec REQ-4): once wallThick*secA exceeds the tang's half-width
+  // there is no core left to remove, and the tang must come out solid with no
+  // branch in the caller and no throw. At wallThick 4.5 the eroded half-width
+  // 5 - 4.5*secA is negative. Measured over [splitX+1, splitX+2] only --
+  // further out, a wall that thick clips the tang. This one passes before the
+  // change too: it guards the new branch, it does not drive it.
+  const stout = await sectionOf(model.build({ ...p, wallThick: 4.5 }), splitX + 1, 1);
+  const wantStout = 10 * (p.dovetailWidth + 2 * 1.5 * wantSlope); // solid, 1 mm of x, 10 mm high
+  check(
+    Math.abs(stout - wantStout) / wantStout < 0.05,
+    `tang stays solid where the fold degenerates (${stout.toFixed(0)} vs ${wantStout.toFixed(0)} mm3)`,
   );
 }
 

@@ -36,7 +36,7 @@ import { draftAngleParam, draftedProfile, gridCenters, interlockDims, ribWidthPa
  *
  * The split seams are joined over the FULL height of the frame (see splitPieces).
  * Each seam is closed by a bulkhead filling the U-channel cross-section, and the
- * dovetail runs through it as a vertical prism — solid tang on one piece, matching
+ * dovetail runs through it as a vertical prism — a `wallThick` fold on one piece, matching
  * slot on the other. So the pieces assemble by sliding together vertically, and
  * the joint constrains both in-plane axes from the floor to the rim. Vertical
  * separation is deliberately unconstrained: that IS the assembly direction, and
@@ -431,7 +431,7 @@ function splitPieces(frame: Shape3D, p: ParamValues, wallInner: Shape3D): Shape3
   const tanA = Math.tan(deg(p.dovetailAngle));
   const secA = 1 / Math.cos(deg(p.dovetailAngle));
   const c = p.dovetailClear; // socket offset by this; tang stays nominal
-  const wb = p.wallThick; // the bulkhead's thickness, and the fold's own
+  const wb = p.wallThick; // the bulkhead's thickness, and the fold's own wall thickness (seamCore's erosion amount)
   const OVERLAP = 2; // how far a profile's base sits inside its owning piece
   const big = Math.max(p.overallLength, p.overallWidth); // generous half-plane bound
 
@@ -473,6 +473,34 @@ function splitPieces(frame: Shape3D, p: ParamValues, wallInner: Shape3D): Shape3
       .lineTo(q(pos, band - hwBase))
       .close();
   };
+
+  // The tang's void. `seamProfile` eroded by one wall thickness, with its base
+  // face ON the seam plane rather than at the base overlap: the piece's end web
+  // occupies [pos - wb, pos] and has to survive as the fold's back wall, so the
+  // hollow starts where that web ends. Cutting this from the seam bulkheads is
+  // what turns a solid dovetail prism into a wall-thickness fold -- which is
+  // what the ground truth does (its rail shows two 1.2 mm flanks and nothing
+  // between them across the tang band) and what a thin-walled frame obviously
+  // wants: at wallThick 1.2 the solid tang was a 110 x 14 x 5 mm slug hanging
+  // off a 1.2 mm ribbon.
+  //
+  // Returns null once the erosion eats the profile: past that thickness there
+  // is no core to remove and the tang is simply solid -- no caller branch, no
+  // new parameter. Both degeneracies are checked: the flanks meeting in the
+  // middle, and the tip face reaching back past the seam plane.
+  const seamCore = (axis: "X" | "Y", pos: number, band: number, dir: 1 | -1): Drawing | null => {
+    const hwBase = w / 2 - wb * secA;
+    const reach = depth - wb;
+    if (hwBase < 0.05 || reach < 0.05) return null;
+    const hwTip = hwBase + reach * tanA;
+    const a1 = pos + dir * reach;
+    const q = (a: number, b: number) => pt(axis, a, b);
+    return draw(q(pos, band - hwBase))
+      .lineTo(q(pos, band + hwBase))
+      .lineTo(q(a1, band + hwTip))
+      .lineTo(q(a1, band - hwTip))
+      .close();
+  };
   const rect = (x0: number, x1: number, y0: number, y1: number): Drawing =>
     drawRectangle(x1 - x0, y1 - y0).translate((x0 + x1) / 2, (y0 + y1) / 2);
   const solid = (d: Drawing): Shape3D =>
@@ -512,7 +540,7 @@ function splitPieces(frame: Shape3D, p: ParamValues, wallInner: Shape3D): Shape3
    * any per-piece region intersect, so the existing region algebra divides it:
    *
    *   tang piece   region = halfplane u tangFootprint
-   *                -> end web + a SOLID dovetail prism
+   *                -> end web + a dovetail folded to wallThick
    *   socket piece region = halfplane - grownTang
    *                -> end web pierced by the dovetail mouth, plus flanks and a
    *                   back for the slot
@@ -535,6 +563,11 @@ function splitPieces(frame: Shape3D, p: ParamValues, wallInner: Shape3D): Shape3
    *
    * A collar wider than the channel is trimmed, not clamped — a dovetail wider
    * than the border just merges into the walls, which is if anything stronger.
+   *
+   * The tang is a FOLD, not a solid: seamCore removes its interior, so the
+   * dovetail is one wall thick all round — like the rest of the frame, and like
+   * the ground truth. Above roughly wallThick = w/2 * cos(angle) the erosion
+   * degenerates and it comes out solid again on its own.
    */
   const seams: Seam[] = [];
   for (const sy of [1, -1] as const) {
@@ -558,7 +591,18 @@ function splitPieces(frame: Shape3D, p: ParamValues, wallInner: Shape3D): Shape3
   const footprint = seams
     .map((s) => web(s).fuse(seamProfile(s.axis, s.pos, s.band, s.dir, c + wb)))
     .reduce((a, b) => a.fuse(b));
-  const joined = frame.fuse(channelSolid(p, wallInner, footprint));
+  // Hollow the tangs BEFORE the frame is fused in: the floor lives in `frame`,
+  // so fusing afterwards closes the fold at the bottom and leaves it open at
+  // the top -- it prints without support and still assembles by sliding down.
+  // The socket piece's region already subtracts the clearance-grown tang, so it
+  // never owned the material being removed here and needs no change.
+  const bulkheads = channelSolid(p, wallInner, footprint);
+  const cores = seams
+    .map((s) => seamCore(s.axis, s.pos, s.band, s.dir))
+    .filter((d): d is Drawing => d !== null);
+  const joined = frame.fuse(
+    cores.length ? (bulkheads.cut(solid(cores.reduce((a, b) => a.fuse(b)))) as Shape3D) : bulkheads,
+  );
 
   // Slice a featured rail/cap `body` (already the U-channel wall profile) into N
   // in-line segments along `axis`, joined by a wall-profile dovetail at each
