@@ -1,7 +1,13 @@
 # Screw bosses at perimeter split lines
 
 Date: 2026-07-25
-Status: approved, ready to implement
+Status: **superseded and removed** (2026-08-07) — implemented as specified, then
+deleted by `2026-08-07-full-height-dovetails-design.md`. This spec's premise, in
+"Problem" below, was that the dovetail joints live at floor level. That was true
+of the port but not of the ground truth, which joins its pieces over the full
+height; once the port did the same, the splaying this feature compensated for
+went away and the bosses had no remaining justification. Kept for the REMFORM® II
+hole-sizing research, which is still correct and reusable.
 Affects: `hardcase-gridfinity-generator/src/models/perimeter.ts` (inherited by
 `perimeter`, `perimeter-square-corners`, `smooth-perimeter`)
 

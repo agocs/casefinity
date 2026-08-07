@@ -118,6 +118,51 @@ bins — adjacent walls differ: **ribs (1.5 proud) on the −Y and +X walls**,
 side pieces x 28.8..321, so ~3.7 mm of joint overlap). Parameters
 `BOARDER_DOVETAIL_WIDTH` 10, `DEPTH` 5, `ANGLE` 30, `CLEAR` 0.2.
 
+**The joints run the full height**, and this was missed on the first pass. Each
+piece end is closed by a transverse **bulkhead** spanning the entire U-channel
+cross-section at `WALL_THICK`, floor to rim, and the dovetail runs through it as
+a straight vertical prism. The STEP is Y-up, so "height" is y:
+
+- Material in the rail's tang band (x 28.7..33.9) is ~230 mm³ per 5 mm of height
+  and stays that way from the floor to the rim (rising only with the wall taper).
+  A plain wall section of the same footprint holds ~62 mm³ — the band is ~3.7x a
+  bare wall all the way up.
+- An XZ cross-section of the long rail at mid height (y 54..56) shows a fully
+  bridged band at x 32.6..33.8 spanning the whole border (z −27.5..−2.5) — the
+  bulkhead — plus a dovetail-shaped wall structure protruding to x ≈ 28.8.
+- The same section of the end cap shows a bulkhead at x 31.3..32.5 pierced by a
+  dovetail-shaped mouth at z −18..−10, behind which a dovetail chamber widens
+  away from the mouth (half-width ≈3.3 at the mouth, ≈5.2 at 3 mm depth — a ~30°
+  flank, matching `BOARDER_DOVETAIL_ANGLE`).
+
+The ground truth's tang and socket are thin-walled, but that is the 1.2 mm liner
+convention, not structural: the port builds a solid tang, since at a 3 mm wall a
+5 mm-deep dovetail has no core left to hollow.
+
+Why the port missed it: building the tang by fusing its 2-D footprint into a
+piece's region and intersecting the frame only materialises it where the HOLLOW
+U-channel happens to have material in the tang band. At the port's defaults the
+corner tang band sits at y 103..119, but at z=0 the outer footprint reaches only
+y=102.1 — `BOTTOM_CORNER_RADIUS` pulls the wall in over the whole bottom fillet —
+so below z≈19 the band was outside the frame entirely, and the joint measured
+exactly **zero** above z=90. The fix intersects the seam footprints with an
+explicit channel solid instead, which is also what gives the bulkhead the wall
+taper and fillet for free. See
+`docs/superpowers/specs/2026-08-07-full-height-dovetails-design.md`.
+
+The correction dominates the model's overall fidelity. Measured at the ground
+truth's own 1.2 mm wall / 1 mm floor, against the 404,563 mm³ truth:
+
+| | before | after |
+|---|---|---|
+| total port volume | 318,579 (21.3% under) | 392,442 (3.0% under) |
+| truth-not-port in one corner joint band | 6,829 mm³ | 223 mm³ |
+
+(Band = x 138..150, y 100..124, z 25..105 in the port's centred Z-up frame.) The
+port now carries *more* material in that band than the truth does — 12,747 vs
+7,855 mm³ — because the truth's tang is a thin-walled shell and the port's is
+solid. The remaining 3.0% is the flat-floor foot, unrelated to the joints.
+
 **Dividers** (`BOARDER_DIVIDERS`) are sparse full-height ribs that fill the
 border channel and project into the cavity. The original's layout is ad-hoc per
 edge (one long side at x≈55, 115, 205, 265; the other at 55, 100, 160, 235; ends

@@ -40,6 +40,5 @@ export const smoothPerimeter: ModelDef = {
     { title: "Interior features", collapsed: true, keys: ["sideBoarderBinAdd", "frontBoarderBinAdd", "dividers"] },
     { title: "Module features", collapsed: true, keys: ["gridSpacing", "gridBump", "ribWidth", "draftAngle"] },
     { title: "Printer convenience", collapsed: false, keys: ["split", "bedWidth", "bedDepth", "bedMargin", "dovetailWidth", "dovetailDepth", "dovetailAngle", "dovetailClear"] },
-    { title: "Screw bosses", collapsed: true, keys: ["bosses", "bossScrewDia", "bossHoleFactor", "bossLen", "bossWall"] },
   ],
 };

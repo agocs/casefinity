@@ -1,4 +1,4 @@
-import { drawRoundedRectangle, drawRectangle, drawCircle, draw } from "replicad";
+import { drawRoundedRectangle, drawRectangle, draw } from "replicad";
 import type { Shape3D, Sketch, Drawing } from "replicad";
 import type { ModelDef, ParamDef, ParamValues } from "./types.ts";
 import { draftAngleParam, draftedProfile, gridCenters, interlockDims, ribWidthParam } from "./registration.ts";
@@ -33,28 +33,24 @@ import { draftAngleParam, draftedProfile, gridCenters, interlockDims, ribWidthPa
  * Remaining simplification: the foot is a flat floor rather than the real gusset
  * ramp, but the fit-critical outer surface (taper + bottom fillet) matches.
  *
- * Optional screw bosses (`bosses`, off by default) put a pad either side of every
- * seam — the four corner joints and every interior bed-split seam — at the rim on
- * the inside of the case wall, with a clearance hole on the piece that carries the
- * tang and a thread-forming pilot hole on its mate. The dovetails alone join the
- * pieces only at floor level (the tang band sits between the two walls, where the
- * frame has material only in the floor slab), so an assembled frame can splay at
- * the mouth; a screw at each seam closes it. Hole sizes come from the REMFORM® II
- * brochure and the pads are proportioned for FDM PETG rather than for moulding —
- * see bossDims. Three caveats: the screw drives ALONG the channel, so a full-height
- * divider between the boss and the nearest opening limits how straight a driver
- * can come in (~57 mm of clear run at the default divider spacing); on a case
- * too shallow for the full 45° gusset the ramp is clamped to land on the floor
- * slab, leaving an overhang steeper than 45° that wants support; and on an
- * absurdly shallow case the gusset clips out THROUGH the wall — the pad's outer
- * face is flat, placed where the wall runs at the rim, but the feature is ~2*pad
- * tall (15.8 mm at the M3 defaults), and over that height the wall leans inward
- * (taper, then much faster inside the bottom corner radius), so the pad sits ever
- * deeper in the wall toward its foot and eventually breaks out the far side.
- * Measured at the defaults: nothing at 27 mm of case depth, 0.7 mm proud at 25 mm,
- * 5.1 mm at 20 mm. Accepted, not fixed (see the README's "Known limitations"):
- * every real hard case is 100 mm-plus deep, and following the fillet would trade a
- * flat, drillable boss face for a curved one on geometry nobody prints.
+ * The split seams are joined over the FULL height of the frame (see splitPieces).
+ * Each seam is closed by a bulkhead filling the U-channel cross-section, and the
+ * dovetail runs through it as a vertical prism — solid tang on one piece, matching
+ * slot on the other. So the pieces assemble by sliding together vertically, and
+ * the joint constrains both in-plane axes from the floor to the rim. Vertical
+ * separation is deliberately unconstrained: that IS the assembly direction, and
+ * the case holds the frame down.
+ *
+ * This is what the ground truth does and what an earlier port did not. Building
+ * the tang by fusing its footprint into a piece's 2-D region and intersecting the
+ * frame only materialises it where the hollow U-channel happens to have material
+ * in the tang band — which is almost nowhere. Measured at the shipped defaults,
+ * the corner tang band sits at y 103..119, but at z=0 the outer footprint reaches
+ * only y=102.1 (BOTTOM_CORNER_RADIUS pulls the wall in over the whole bottom
+ * fillet), so below z≈19 the band was outside the frame entirely and above it was
+ * a sliver of channel. That near-absent joint is why the model briefly carried
+ * optional screw bosses at the seams; a full-height dovetail removes the reason
+ * for them (see docs/superpowers/specs/2026-08-07-full-height-dovetails-design.md).
  *
  * Print clearances (both default to a nominal fit; dial in per printer/material):
  *   - `clearance` (CLEARANCE) shrinks the whole outer envelope so the assembled
@@ -363,216 +359,45 @@ function addDividers(shape: Shape3D, p: ParamValues, signY: 1 | -1): Shape3D {
 }
 
 /**
- * Signed coordinate of the outer wall's INNER face on the wall whose normal runs
- * along `axis`, at height z — the same surface `outerAt(z, wallThick, p)` draws,
- * so taper, bottom fillet and CLEARANCE are all accounted for. `outerInnerY`
- * omits the clearance term, which is deliberately conservative for a divider
- * (it only has to overlap the wall) but wrong for a screw boss, which has to sit
- * exactly ON the face at a known embedment.
+ * One split seam: where the two pieces meet, which way the tang points, and
+ * which border the joint sits in.
  */
-function wallFaceMag(axis: "X" | "Y", z: number, p: ParamValues): number {
-  const overall = axis === "X" ? p.overallLength : p.overallWidth;
-  const taper = axis === "X" ? p.frontWallTaper : p.sideWallTaper;
-  const shrink = 2 * (p.overallHeight - z) * Math.tan(deg(taper));
-  return (overall - shrink - 2 * filletInset(z, p) - 2 * p.clearance) / 2 - p.wallThick;
-}
-
-/**
- * REMFORM® II metric series maximum major diameter per nominal size (REMINC/
- * CONTI brochure p. 2). The clearance hole is sized to this, so a screw at the
- * top of its diameter tolerance still passes freely. Sizes off the table follow
- * the table's own pattern: +0.10 below 5 mm, +0.15 from 5 mm up.
- */
-const MAJOR_DIA_MAX: [nominal: number, max: number][] = [
-  [1.0, 1.07], [1.2, 1.27], [1.4, 1.47], [1.6, 1.7], [1.8, 1.9], [2.0, 2.1],
-  [2.2, 2.3], [2.5, 2.6], [3.0, 3.1], [3.5, 3.6], [4.0, 4.1], [4.5, 4.6],
-  [5.0, 5.15], [6.0, 6.15], [7.0, 7.15], [8.0, 8.15], [9.0, 9.15], [10.0, 10.15],
-];
-function majorDiaMax(d: number): number {
-  const hit = MAJOR_DIA_MAX.find(([nom]) => Math.abs(nom - d) < 1e-6);
-  return hit ? hit[1] : d + (d >= 5 ? 0.15 : 0.1);
-}
-
-type BossDims = {
-  clearDia: number;
-  pilotDia: number;
-  /** The pad's depth into the channel and its height — a square section. */
-  pad: number;
-  /** How far the pad's outer edge is pushed into the wall. */
-  embed: number;
-  /** Top of the pad: the case mouth, so the pad's top face is the rim. */
-  zTop: number;
-  /** Vertical drop of the 45° gusset ramp (== pad, unless clamped). */
-  run: number;
-  /** 45° lead-in chamfer on the clearance hole's outer mouth. */
-  chamfer: number;
-};
-
-/**
- * Derived screw-boss geometry, or null when the frame has no room for a usable
- * one (the two guards below).
- *
- * Hole sizes come from the REMFORM® II brochure: the CLEARANCE hole is the
- * screw's maximum major diameter (p. 2, see majorDiaMax) and the PILOT hole is
- * the "recommended hole size" — a factor times the MINIMUM major diameter
- * (p. 3), which that table gives as the nominal size for every listed metric
- * size, hence `bossHoleFactor * bossScrewDia`. The 0.80 default is the
- * brochure's factor for PET / PBT / PC / PS: PETG is not listed and PET and PC
- * are its closest listed relatives (PP/PE/PA/ABS would be 0.75, 30 % glass-
- * filled 0.82–0.85, all reachable via the parameter).
- *
- * `pad` is clearDia + 2*bossWall — the same material all round the LARGER of the
- * two holes, so both halves of a joint are the same block and the pilot side
- * simply gets extra meat. At the M3 defaults that is 7.9 mm, about 2.6x nominal
- * where injection-moulding practice would say 2x: the boss prints with its axis
- * horizontal, so hoop stress at the hole runs partly across layer lines, which
- * is FDM PETG's weak direction.
- */
-function bossDims(p: ParamValues): BossDims | null {
-  const clearDia = majorDiaMax(p.bossScrewDia);
-  const pilotDia = p.bossHoleFactor * p.bossScrewDia;
-  const pad = clearDia + 2 * p.bossWall;
-  const zTop = p.overallHeight;
-  // No room between the rim and the floor slab for even the block itself.
-  if (zTop - pad <= p.footThick) return null;
-  // No room across the U-channel: a pad deeper than the border would grow
-  // through the cavity wall and stick out where the bins go. Checked on both the
-  // long and the end walls, since seams on both carry bosses.
-  const { length, width } = cavityDims(p);
-  const border = Math.min(
-    wallFaceMag("Y", zTop, p) - (width / 2 + p.wallThick),
-    wallFaceMag("X", zTop, p) - (length / 2 + p.wallThick),
-  );
-  if (pad > border) return null;
-  // 45° gusset: the ramp's vertical drop equals the pad's depth. On a case too
-  // shallow for the full run it is clamped to land on the floor slab, and is
-  // then steeper than 45° (see the model doc comment).
-  const run = Math.min(pad, zTop - pad - p.footThick);
-  // Clamped below bossWall so the 45° cone can never break out through the
-  // pad's side: the bore is centred in a pad clearDia + 2*bossWall square, so
-  // the hole has exactly bossWall of material all round. At the parameter's
-  // bossWall >= 1 floor the clamp is inactive, but it keeps the geometry safe
-  // if that floor ever moves.
-  const chamfer = Math.min(0.5, p.bossWall - 0.2);
-  return { clearDia, pilotDia, pad, embed: Math.min(0.4, p.wallThick / 2), zTop, run, chamfer };
-}
-
-/** One half of a boss pair: which seam, which side of it, and which hole. */
-type BossSeam = {
-  /** The screw's axis — along the wall, across the seam. */
+type Seam = {
+  /** The axis the tang protrudes along — and the axis the joint locks. */
   axis: "X" | "Y";
-  /** Which of the two walls normal to the other axis carries the pad. */
-  wallSign: 1 | -1;
   /** Seam-plane coordinate on `axis`. */
-  at: number;
-  /** Which side of the seam this half occupies (+1 = above `at`). */
+  pos: number;
+  /** Dovetail band centre on the OTHER axis (the border centre). */
+  band: number;
+  /** Protrusion direction of the tang along `axis`. */
+  dir: 1 | -1;
+  /** Which half of the off-axis this seam's border lies in. */
   side: 1 | -1;
-  hole: "clear" | "pilot";
-  /** Pad length along `axis` — the thread engagement on the pilot side. */
-  len: number;
+  /** Where that half starts, measured from the centre (unsigned). */
+  from: number;
 };
 
 /**
- * The pad block for one half of a boss pair, and the bore that goes with it.
+ * The open U-channel as a solid: everything inside the outer wall's inner face
+ * and outside the inner wall's outer face, full height. Intersecting a flat 2-D
+ * footprint with this is what gives a seam bulkhead the wall taper, the bottom
+ * fillet and CLEARANCE for free — none of the footprint maths has to know the
+ * wall profile.
  *
- * The pad's outer edge is placed `embed` INSIDE the wall face taken at the rim,
- * never tangent to it: a tangent pad is a zero-thickness-contact boolean. The
- * wall tapers, so its face is further in lower down and the pad is embedded
- * progressively deeper toward its base — always overlapping, never floating, and
- * never breaking through the outer surface as long as embed < wallThick.
- *
- * Cross-section in the (wall-normal, z) plane: flat top at the rim, vertical
- * face into the channel, then a ramp of slope `run/pad` (45° unless clamped)
- * straight back to the wall. That ramp IS the gusset — the pad has no flat
- * underside to overhang.
+ * `wallInner` is the `outerLoft(wallThick, p)` buildPerimeter already built for
+ * the wall cut, passed in rather than rebuilt: it is the single most expensive
+ * solid in the model and a second one would double that cost for nothing.
  */
-function bossHalf(p: ParamValues, s: BossSeam, d: BossDims): { pad: Shape3D; bore: Shape3D } {
-  const nAxis = s.axis === "X" ? "Y" : "X"; // the wall's normal
-  const g = s.wallSign;
-  const nOut = g * (wallFaceMag(nAxis, d.zTop, p) + d.embed);
-  const nIn = nOut - g * d.pad;
-  const zBase = d.zTop - d.pad;
-  const prof = draw([nOut, d.zTop])
-    .lineTo([nIn, d.zTop])
-    .lineTo([nIn, zBase])
-    .lineTo([nOut, zBase - d.run])
-    .close();
-  const u0 = s.side > 0 ? s.at : s.at - s.len;
-  // Verified against the kernel: "YZ" maps a drawing's (a, b) to (Y, Z), sits at
-  // X = offset and extrudes toward +X; "XZ" maps it to (X, Z) but sits at
-  // Y = -offset and extrudes toward -Y — hence the negated, length-shifted
-  // offset so both cases span [u0, u0 + len] on the seam axis.
-  const prism = (dr: Drawing, from: number, len: number, endFactor?: number): Shape3D => {
-    const opts = endFactor === undefined
-      ? undefined
-      : { extrusionProfile: { profile: "linear" as const, endFactor } };
-    return s.axis === "X"
-      ? ((dr.sketchOnPlane("YZ", from) as Sketch).extrude(len, opts) as Shape3D)
-      : ((dr.sketchOnPlane("XZ", -(from + len)) as Sketch).extrude(len, opts) as Shape3D);
-  };
-  const r = (s.hole === "clear" ? d.clearDia : d.pilotDia) / 2;
-  const over = 0.5; // both holes are through holes; over-cut leaves no film
-  const nCentre = nOut - g * (d.pad / 2); // the bore axis, on the wall normal
-  const zCentre = d.zTop - d.pad / 2;
-  let bore = prism(drawCircle(r).translate(nCentre, zCentre), u0 - over, s.len + 2 * over);
-
-  // 45° lead-in chamfer, on the CLEARANCE hole's outer mouth only — the end the
-  // screw actually enters. Deliberately asymmetric: at the M3 defaults a ø3.10
-  // clearance hole and a ø2.40 pilot are not reliably distinguishable by eye in
-  // a printed part, so the chamfered mouth is also the marker for which end
-  // takes the screw. The pilot hole and both seam-facing ends stay sharp.
-  if (s.hole === "clear" && d.chamfer > 0) {
-    const ch = d.chamfer;
-    const mouth = s.side > 0 ? u0 + s.len : u0; // the half's free end, away from the seam
-    const dir = s.side > 0 ? 1 : -1; // outward along the seam axis
-    // The cone runs `over` PAST the mouth, still growing at 45°, rather than
-    // stopping on it: ending flush would leave an annular step face coplanar
-    // with the pad's end face, and coplanar faces are where OCCT booleans
-    // misbehave. Past the face the extra cone is cutting air.
-    const ends = [
-      { u: mouth - dir * ch, r },
-      { u: mouth + dir * over, r: r + ch + over },
-    ].sort((a, b) => a.u - b.u);
-    const [lo, hi] = ends;
-    // `prism` extrudes toward +u on the X axis but toward -u on the Y axis (see
-    // its note above), so a linear extrusion profile scales opposite ends in the
-    // two cases — draw the circle at whichever end it starts from.
-    const [rStart, rEnd] = s.axis === "X" ? [lo.r, hi.r] : [hi.r, lo.r];
-    // Drawn on the axis and moved into place afterwards, NOT drawn in place: an
-    // extrusion profile sweeps along a spine rooted at the sketch plane's
-    // ORIGIN and scales the section about that spine, so a cone drawn at the
-    // bore's offset would taper off toward the plane origin and cut air 40 mm
-    // away from the hole. Verified against the kernel.
-    const cone = prism(drawCircle(rStart), lo.u, hi.u - lo.u, rEnd / rStart)
-      .translate(s.axis === "X" ? [0, nCentre, zCentre] : [nCentre, 0, zCentre]);
-    bore = bore.fuse(cone);
-  }
-  return { pad: prism(prof, u0, s.len), bore };
-}
-
-/**
- * Fuse the boss halves for `seams` onto one already-split piece.
- *
- * Per piece, after slicing — never as one solid straddling the seam that the
- * split later divides. A wide dovetail pushes the tang footprint out toward the
- * case wall (at the defaults it already reaches into the pad's own band), so a
- * straddling pad would be handed to the wrong piece and gouged by the socket's
- * clearance growth, right where the hole is.
- *
- * Pads are fused first and all bores cut afterwards as one cutter: a pad may
- * merge with a divider rib that happens to fall in its span, and the screw still
- * has to pass through it.
- */
-function addBosses(piece: Shape3D, p: ParamValues, d: BossDims | null, seams: BossSeam[]): Shape3D {
-  if (!d || !seams.length) return piece;
-  let out = piece;
-  let bores: Shape3D | null = null;
-  for (const s of seams) {
-    const half = bossHalf(p, s, d);
-    out = out.fuse(half.pad);
-    bores = bores ? bores.fuse(half.bore) : half.bore;
-  }
-  return bores ? (out.cut(bores) as Shape3D) : out;
+function channelSolid(p: ParamValues, wallInner: Shape3D, footprint: Drawing): Shape3D {
+  const prism = (footprint.sketchOnPlane("XY", 0) as Sketch).extrude(p.overallHeight) as Shape3D;
+  // Cut the cavity out of the flat prism first, then meet the loft: both
+  // operands of the cut are plain extrusions, so it is the cheap half, and it
+  // shrinks what reaches the expensive spline-faced loft. Measured a wash
+  // against the other order at the defaults (~0.2 s on a ~59 s build, i.e.
+  // noise) — kept for the smaller operand, not for a demonstrated speedup.
+  return prism
+    .cut((cavityAt(0, p.wallThick, p) as Sketch).extrude(p.overallHeight) as Shape3D)
+    .intersect(wallInner.clone()) as Shape3D;
 }
 
 /**
@@ -590,8 +415,12 @@ function addBosses(piece: Shape3D, p: ParamValues, d: BossDims | null, seams: Bo
  * fields (0) mean "no limit" → the original four pieces (Nlong = Nend = 1), so
  * this is a strict generalization of the 4-piece split. Pieces stay in their
  * assembled positions; the viewer and 3MF export present them separately.
+ *
+ * Every seam — corner joints and bed splits alike — is first given a full-height
+ * bulkhead (see the "Full-height joint" block below); the per-piece region
+ * algebra then divides it into tang and socket with no extra splitting logic.
  */
-function splitPieces(frame: Shape3D, p: ParamValues): Shape3D[] {
+function splitPieces(frame: Shape3D, p: ParamValues, wallInner: Shape3D): Shape3D[] {
   const { length, width } = cavityDims(p);
   const splitX = length / 2;
   const yc = (width / 2 + p.overallWidth / 2) / 2; // long-rail border centre (Y)
@@ -653,47 +482,61 @@ function splitPieces(frame: Shape3D, p: ParamValues): Shape3D[] {
   const cutsLong = Array.from({ length: nLong - 1 }, (_, i) => -splitX + ((i + 1) * 2 * splitX) / nLong);
   const cutsEnd = Array.from({ length: nEnd - 1 }, (_, i) => -p.overallWidth / 2 + ((i + 1) * p.overallWidth) / nEnd);
 
-  // Screw bosses (see bossDims / bossHalf): a pad either side of every seam, at
-  // the rim on the inside of the case wall. Lengths are worked out per seam and
-  // must come out the SAME on both sides, or one piece gets a pad and its mate
-  // gets nothing: `seamLen` is therefore a function of the seam alone (both
-  // adjoining segments are equal length by construction), and a seam too short
-  // for a usable screw yields 0 and is skipped on both sides.
-  const bd = p.bosses ? bossDims(p) : null;
-  const segLenLong = (2 * splitX) / nLong;
-  const segLenEnd = p.overallWidth / nEnd;
-  // Where a wall's flat run ends: past this the outer wall turns into the case's
-  // rounded plan corner, and a pad placed on the straight-wall face would stand
-  // proud of the curve.
-  const flatRun = (axis: "X" | "Y", at: number): number =>
-    (axis === "X" ? p.overallLength : p.overallWidth) / 2 - p.bottomCornerRadius - Math.abs(at) - 0.5;
-  // Half the shorter adjoining segment, less 1 mm, keeps two pads on one segment
-  // from running into each other; below 1.5 x the screw diameter there is not
-  // enough engagement to call it a joint, so drop the pair.
-  const seamLen = (segLen: number, room: number): number => {
-    const len = Math.min(p.bossLen, segLen / 2 - 1, room);
-    return len >= 1.5 * p.bossScrewDia ? len : 0;
+  /**
+   * Full-height joint. Every seam is closed by a bulkhead filling the U-channel
+   * cross-section, `wallThick` thick either side of the seam plane, with the
+   * dovetail running through it as a vertical prism. Fused into the frame BEFORE
+   * any per-piece region intersect, so the existing region algebra divides it:
+   *
+   *   tang piece   region = halfplane u tangFootprint
+   *                -> end web + a SOLID dovetail prism
+   *   socket piece region = halfplane - grownTang
+   *                -> end web pierced by the dovetail mouth, plus flanks and a
+   *                   back for the slot
+   *
+   * Two flat 2-D pieces per seam are enough, because channelSolid trims them to
+   * the wall profile:
+   *   - `web`, spanning +/-wallThick about the seam plane and the whole half of
+   *     the off-axis that this border lies in. A HALF-PLANE, not the nominal
+   *     border width: at the corner seams (x = +/-splitX) the cavity's rounded
+   *     corner has already turned away, so the channel there is wider than the
+   *     border (~40 mm vs 27.5 at the defaults) and a nominal-width band would
+   *     leave part of it open. Everything inboard of the cavity wall is removed
+   *     by channelSolid's own cavity cut, and the half-plane cannot reach the
+   *     opposite rail.
+   *   - the socket footprint dilated by one wall thickness, `seamTang(...,
+   *     dovetailClear + wallThick)`. It contains the tang footprint (so the tang
+   *     piece gets a solid prism) and stands `wallThick` off the slot on both
+   *     flanks and at its far end (so the socket piece gets flanks and the tang
+   *     bottoms out against material).
+   *
+   * A collar wider than the channel is trimmed, not clamped — a dovetail wider
+   * than the border just merges into the walls, which is if anything stronger.
+   */
+  const wb = p.wallThick;
+  const seams: Seam[] = [];
+  for (const sy of [1, -1] as const) {
+    // Corner joints: the rail owns the tang and it protrudes outward into the cap.
+    seams.push({ axis: "X", pos: splitX, band: sy * yc, dir: 1, side: sy, from: 0 });
+    seams.push({ axis: "X", pos: -splitX, band: sy * yc, dir: -1, side: sy, from: 0 });
+    // Interior rail bed splits: sliceSegments gives the lower segment the tang.
+    for (const cx of cutsLong) seams.push({ axis: "X", pos: cx, band: sy * yc, dir: 1, side: sy, from: 0 });
+  }
+  // End-cap bed splits. Unlike a rail seam these must be held off the centre:
+  // at |y| past the cavity the whole x range is long-rail border, so a
+  // half-plane from 0 would drop a stray transverse wall across a rail.
+  for (const ex of [1, -1] as const)
+    for (const cy of cutsEnd) seams.push({ axis: "Y", pos: cy, band: ex * xcEnd, dir: 1, side: ex, from: splitX });
+
+  const web = ({ axis, pos, side, from }: Seam): Drawing => {
+    const b0 = Math.min(side * from, side * big);
+    const b1 = Math.max(side * from, side * big);
+    return axis === "X" ? rect(pos - wb, pos + wb, b0, b1) : rect(b0, b1, pos - wb, pos + wb);
   };
-  const longSeamLen = (at: number): number => seamLen(segLenLong, flatRun("X", at));
-  const endSeamLen = (at: number): number => seamLen(segLenEnd, flatRun("Y", at));
-  // A corner joint's pad sits on the long wall, so on the end cap it is a Y-slice
-  // away from being cut in half by a bed split. Only reachable on an absurdly
-  // small bed, but half a pad is a broken joint, so drop the pair if it happens.
-  const capCutsClearPad = (d: BossDims): boolean => {
-    const hi = wallFaceMag("Y", d.zTop, p) + d.embed;
-    return cutsEnd.every((c) => Math.abs(c) < hi - d.pad || Math.abs(c) > hi);
-  };
-  // The corner joint is the same seam seen from the rail (which owns the tang, so
-  // it takes the clearance hole) and from the cap (the pilot hole).
-  const cornerLen = bd && capCutsClearPad(bd) ? longSeamLen(splitX) : 0;
-  // Which Y-segment of an end cap holds the corner pad on the +Y / -Y long wall
-  // (the cap is sliced across the pad's axis, so its mate has to be found).
-  const cornerSeg = bd
-    ? ([1, -1] as const).map((g) => ({
-        wallSign: g,
-        seg: cutsEnd.filter((c) => c < g * (wallFaceMag("Y", bd.zTop, p) + bd.embed - bd.pad / 2)).length,
-      }))
-    : [];
+  const footprint = seams
+    .map((s) => web(s).fuse(seamTang(s.axis, s.pos, s.band, s.dir, c + wb)))
+    .reduce((a, b) => a.fuse(b));
+  const joined = frame.fuse(channelSolid(p, wallInner, footprint));
 
   // Slice a featured rail/cap `body` (already the U-channel wall profile) into N
   // in-line segments along `axis`, joined by a wall-profile dovetail at each
@@ -739,24 +582,8 @@ function splitPieces(frame: Shape3D, p: ParamValues): Shape3D[] {
       .fuse(seamTang("X", splitX, sy * yc, 1))
       .fuse(seamTang("X", -splitX, sy * yc, -1));
     const kind = sy > 0 ? "groove" : "rib";
-    const rail = applyGridFeatures(div(frame.clone().intersect(solid(region0)), sy), p, wallSpec("Y", sy, kind));
-    const segs = sliceSegments(rail, "X", nLong, cutsLong, sy * yc);
-    if (!bd) return segs;
-    // Bosses go on the long wall this rail owns. The rail carries the tang at
-    // both corner joints and at every interior seam it sits BELOW (sliceSegments
-    // gives the lower segment the male tang), so those ends take the clearance
-    // hole and the piece on the far side takes the pilot.
-    return segs.map((seg, i) => {
-      const seams: BossSeam[] = [];
-      const add = (at: number, side: 1 | -1, hole: "clear" | "pilot", len: number) => {
-        if (len) seams.push({ axis: "X", wallSign: sy, at, side, hole, len });
-      };
-      if (i === 0) add(-splitX, 1, "clear", cornerLen);
-      if (i === nLong - 1) add(splitX, -1, "clear", cornerLen);
-      if (i < nLong - 1) add(cutsLong[i], -1, "clear", longSeamLen(cutsLong[i]));
-      if (i > 0) add(cutsLong[i - 1], 1, "pilot", longSeamLen(cutsLong[i - 1]));
-      return addBosses(seg, p, bd, seams);
-    });
+    const rail = applyGridFeatures(div(joined.clone().intersect(solid(region0)), sy), p, wallSpec("Y", sy, kind));
+    return sliceSegments(rail, "X", nLong, cutsLong, sy * yc);
   };
 
   // One end cap (ex = +1 right / -1 left): full-width beyond the split with the
@@ -765,29 +592,10 @@ function splitPieces(frame: Shape3D, p: ParamValues): Shape3D[] {
     const x0 = ex > 0 ? splitX : -big;
     const x1 = ex > 0 ? big : -splitX;
     const kind = ex > 0 ? "rib" : "groove";
-    const cap = applyGridFeatures(frame.clone().intersect(solid(rect(x0, x1, -big, big))), p, wallSpec("X", ex, kind))
+    const cap = applyGridFeatures(joined.clone().intersect(solid(rect(x0, x1, -big, big))), p, wallSpec("X", ex, kind))
       .cut(solid(seamTang("X", ex * splitX, yc, ex, c)))
       .cut(solid(seamTang("X", ex * splitX, -yc, ex, c)));
-    const segs = sliceSegments(cap, "Y", nEnd, cutsEnd, ex * xcEnd);
-    if (!bd) return segs;
-    // Two kinds of seam meet this cap: the corner joints, whose pads sit on the
-    // LONG walls (screw along X, pilot side — the rail holds the tang and the
-    // screw head), and its own interior bed splits, whose pads sit on the END
-    // wall (screw along Y).
-    return segs.map((seg, i) => {
-      const seams: BossSeam[] = [];
-      for (const { wallSign, seg } of cornerSeg) {
-        if (cornerLen && seg === i)
-          seams.push({ axis: "X", wallSign, at: ex * splitX, side: ex, hole: "pilot", len: cornerLen });
-      }
-      const add = (at: number, side: 1 | -1, hole: "clear" | "pilot") => {
-        const len = endSeamLen(at);
-        if (len) seams.push({ axis: "Y", wallSign: ex, at, side, hole, len });
-      };
-      if (i < nEnd - 1) add(cutsEnd[i], -1, "clear");
-      if (i > 0) add(cutsEnd[i - 1], 1, "pilot");
-      return addBosses(seg, p, bd, seams);
-    });
+    return sliceSegments(cap, "Y", nEnd, cutsEnd, ex * xcEnd);
   };
 
   return [...longSegments(1), ...longSegments(-1), ...endSegments(1), ...endSegments(-1)];
@@ -834,11 +642,6 @@ export const perimeterParams: ParamDef[] = [
     { key: "dovetailDepth", fusionName: "BOARDER_DOVETAIL_DEPTH", label: "Dovetail depth", default: 5, unit: "mm", min: 2, max: 15, step: 0.5 },
     { key: "dovetailAngle", fusionName: "BOARDER_DOVETAIL_ANGLE", label: "Dovetail angle", default: 30, unit: "deg", min: 0, max: 45, step: 1 },
     { key: "dovetailClear", fusionName: "BOARDER_DOVETAIL_CLEAR", label: "Dovetail clearance", default: 0.2, unit: "mm", min: 0, max: 1, step: 0.05 },
-    { key: "bosses", label: "Screw bosses at split lines (needs split)", default: 0, unit: "", min: 0, max: 1, step: 1 },
-    { key: "bossScrewDia", label: "Boss screw size (nominal dia)", default: 3, unit: "mm", min: 2, max: 6, step: 0.5 },
-    { key: "bossHoleFactor", label: "Pilot hole factor (x min screw dia)", default: 0.8, unit: "", min: 0.7, max: 0.9, step: 0.01 },
-    { key: "bossLen", label: "Boss length (each side of seam)", default: 6, unit: "mm", min: 2, max: 20, step: 0.5 },
-    { key: "bossWall", label: "Boss material around hole", default: 2.4, unit: "mm", min: 1, max: 6, step: 0.2 },
 ];
 
 export function buildPerimeter(p: ParamValues): Shape3D | Shape3D[] {
@@ -872,8 +675,10 @@ export function buildPerimeter(p: ParamValues): Shape3D | Shape3D[] {
     const collar = floorCollar(p, wallInner);
     if (collar) frame = frame.fuse(collar);
     // When splitting, grid features + dividers are added per piece (splitPieces);
-    // otherwise apply them to the whole frame.
-    if (p.split) return splitPieces(frame, p);
+    // otherwise apply them to the whole frame. `wallInner` goes along for the
+    // ride: splitPieces needs it to carve the seam bulkheads out of the channel,
+    // and rebuilding that loft is the single most expensive thing in the model.
+    if (p.split) return splitPieces(frame, p, wallInner);
     // Dividers FIRST, grid features (grooves) LAST: a divider coincides in X
     // with a grid module centre by construction (dividerCenters draws from the
     // same set gridCenters does), so on the +Y/-X (groove) walls a divider's
@@ -905,7 +710,6 @@ export const perimeter: ModelDef = {
     { title: "Interior features", collapsed: true, keys: ["sideBoarderBinAdd", "frontBoarderBinAdd", "dividers"] },
     { title: "Module features", collapsed: true, keys: ["gridSpacing", "gridBump", "ribWidth", "draftAngle"] },
     { title: "Printer convenience", collapsed: false, keys: ["split", "bedWidth", "bedDepth", "bedMargin", "dovetailWidth", "dovetailDepth", "dovetailAngle", "dovetailClear"] },
-    { title: "Screw bosses", collapsed: true, keys: ["bosses", "bossScrewDia", "bossHoleFactor", "bossLen", "bossWall"] },
   ],
   build: buildPerimeter,
 };

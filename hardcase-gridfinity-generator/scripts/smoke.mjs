@@ -58,7 +58,12 @@ const expected = {
   // backing bosses and the dividers. The 2 deg draft accounts for +34 of it:
   // it takes material off every rib and puts slightly more back by narrowing
   // every groove, and this model has more grooves than ribs in play.
-  "perimeter-square-corners": { x: 350, y: 250, z: 110, volume: 757147 },
+  // The full-height dovetail joints then added 89845 (757147 -> 846992): four
+  // seam bulkheads plus their dovetail prisms. Less than the 112136 the same
+  // change costs the rounded-corner perimeter, because a square cavity corner
+  // reaches further out at the corner seams, leaving a narrower channel there
+  // for the bulkhead to fill.
+  "perimeter-square-corners": { x: 350, y: 250, z: 110, volume: 846992 },
   "bin-no-lid": { x: 46.3, y: 46.3, z: 115, volume: 28618, params: { ribWidth: 1.2, draftAngle: 0 } },
   // body + lid: plate flush with the rim, both rail beads, the lock swell, the
   // +X rail ledge, the finger scoop, the socket notches and the TOP engraving.
@@ -144,34 +149,32 @@ for (const model of models) {
 }
 
 // ---------------------------------------------------------------------------
-// Screw bosses at the split seams (perimeter.ts). Off by default, so the loop
-// above never exercises them: build the perimeter once with bosses:1 and check
-// the invariants that matter. Self-derived expected volume (no ground truth —
-// the bosses are not in the original Fusion 360 designs).
-//   - the split still yields 4 pieces, one clean solid each (a pad fused across
-//     a seam, or a bore left half-cut, shows up as debris or a second solid);
-//   - the bbox is untouched: a pad may not stand above the rim or outside the
-//     case wall, or the frame stops fitting the case;
-//   - total volume = boss-off + 8 pads (4 seams x 2 halves): 4 clearance halves
-//     at ~455.0 and 4 pilot halves at ~473.1 mm3, the difference being the
-//     narrower pilot bore, less 4 x 1.35 mm3 for the clearance-mouth chamfers.
-//     (Boss-off was 719856 at the original 1.2 mm grid bump; the pads
-//     themselves derive from the screw size, not the bump.)
-//   - both holes are actually open: a probe cylinder just inside the pilot
-//     diameter, run through BOTH pads of one joint, must meet no material, while
-//     one just outside it must meet material on the pilot side (i.e. the pilot
-//     hole really is the smaller of the two).
-//   - the 45 deg lead-in chamfer is on the clearance hole's outer mouth and
-//     ONLY there. It is the marker for which end takes the screw, so a chamfer
-//     that migrated to the pilot end, or appeared on both, would mislead
-//     someone assembling the frame — a probe at the chamfered radius must find
-//     the clearance mouth open and the pilot mouth solid.
-console.log("perimeter with screw bosses:");
+// The full-height dovetail joints (perimeter.ts). Every seam is closed by a
+// bulkhead filling the U-channel and the dovetail runs through it as a vertical
+// prism, so the pieces lock in both in-plane axes from the floor to the rim.
+// Self-derived expectations (the ported joint is at the shipped 3 mm wall, not
+// the ground truth's 1.2 mm), but the failure this guards against is concrete:
+// before the bulkheads existed the tang was built by fusing its 2-D footprint
+// into a piece's region and intersecting a HOLLOW frame, so it only appeared
+// where the channel happened to have material in the tang band. Measured at
+// these defaults it decayed from 302 mm3 per 10 mm of height at the floor to
+// exactly ZERO above z=90 -- the joint was missing over the top fifth of the
+// frame, which is why the model briefly needed screw bosses. So:
+//   - the split still yields 4 pieces;
+//   - the bbox is untouched: the bulkhead lives inside the channel, so it may
+//     not push the envelope past the case;
+//   - the tang band carries material at the RIM, not just near the floor, and
+//     on BOTH sides of the seam plane (a tang with no socket, or a socket with
+//     no tang, is not a joint);
+//   - no two pieces overlap. The socket is the tang grown by dovetailClear, so
+//     any interference means that clearance was lost and the parts will not
+//     assemble.
+console.log("perimeter full-height dovetail joints:");
 {
-  const { drawCircle } = await import("replicad");
+  const { drawRectangle } = await import("replicad");
   const { modelById } = await import("../src/models/index.ts");
   const model = modelById("perimeter");
-  const p = { ...defaultValues(model), bosses: 1 };
+  const p = defaultValues(model);
   const started = Date.now();
   const pieces = model.build(p);
   const volume = pieces.reduce((sum, s) => sum + measureVolume(s), 0);
@@ -197,27 +200,19 @@ console.log("perimeter with screw bosses:");
   const wantBox = [350, 250, 110];
   check(
     dims.every((d, i) => Math.abs(d - wantBox[i]) <= 0.1),
-    `bbox unchanged by the bosses (${dims.map((d) => d.toFixed(2)).join(" x ")})`,
+    `bbox unchanged by the bulkheads (${dims.map((d) => d.toFixed(2)).join(" x ")})`,
   );
 
-  const wantVolume = 753137;
-  const relative = Math.abs(volume - wantVolume) / wantVolume;
-  check(relative <= VOLUME_TOLERANCE, `volume within ${(VOLUME_TOLERANCE * 100).toFixed(1)}% of ${wantVolume}`);
-
-  // Corner joint on the +Y long wall at x = +splitX, derived the same way the
-  // model does: cavity length / 2, and the wall's inner face at the rim.
+  // The +Y corner joint, derived the way the model derives it: the seam is the
+  // cavity-length boundary, the dovetail band is centred on the long border.
   const sideBoarder =
     p.overallLength - p.gridSpacing * (Math.floor(p.overallLength / p.gridSpacing) - p.sideBoarderBinAdd);
+  const frontBoarder =
+    p.overallWidth - p.gridSpacing * (Math.floor(p.overallWidth / p.gridSpacing) - p.frontBoarderBinAdd);
   const splitX = (p.overallLength - sideBoarder) / 2;
-  const pad = p.bossScrewDia + 0.1 + 2 * p.bossWall; // M3 clearance dia + walls
-  // At the rim there is no taper shrink and no bottom-fillet inset, so the outer
-  // wall's inner face is just the half-width less clearance and wall thickness.
-  const wallFace = p.overallWidth / 2 - p.clearance - p.wallThick;
-  const yAxis = wallFace + Math.min(0.4, p.wallThick / 2) - pad / 2;
-  const zAxis = p.overallHeight - pad / 2;
-  const pilotR = (p.bossHoleFactor * p.bossScrewDia) / 2;
-  const probe = (r, x0, len) =>
-    drawCircle(r).translate(yAxis, zAxis).sketchOnPlane("YZ", x0).extrude(len);
+  const yc = ((p.overallWidth - frontBoarder) / 2 + p.overallWidth / 2) / 2;
+  const band = (x0, x1, z0, z1) =>
+    drawRectangle(x1 - x0, 20).translate((x0 + x1) / 2, yc).sketchOnPlane("XY", z0).extrude(z1 - z0);
   const meets = (tool) => {
     let v = 0;
     for (const piece of pieces) {
@@ -225,28 +220,22 @@ console.log("perimeter with screw bosses:");
     }
     return v;
   };
-  const through = meets(probe(pilotR - 0.05, splitX - p.bossLen, 2 * p.bossLen));
-  const around = meets(probe(pilotR + 0.15, splitX, p.bossLen));
-  check(through < 0.01, `pilot+clearance holes open right through the joint (${through.toFixed(3)} mm3 of material)`);
-  check(around > 1, `material immediately outside the pilot hole (${around.toFixed(2)} mm3)`);
+  // A 10 mm slab of the tang band at the rim. The old floor-level-only joint
+  // scored 0 here; the bulkhead plus the tang prism fill most of the band.
+  const atRim = meets(band(splitX - 3, splitX + 8, p.overallHeight - 10, p.overallHeight));
+  check(atRim > 1500, `joint material in the tang band at the rim (${atRim.toFixed(0)} mm3, was 0 before)`);
+  // ...and it is a JOINT: material on both sides of the seam plane, mid height.
+  const railSide = meets(band(splitX - 3, splitX, 50, 60));
+  const capSide = meets(band(splitX, splitX + 8, 50, 60));
+  check(railSide > 300, `tang-side material at the seam (${railSide.toFixed(0)} mm3)`);
+  check(capSide > 700, `socket-side material at the seam (${capSide.toFixed(0)} mm3)`);
 
-  // The lead-in chamfer. `around` above located the pilot half at x > splitX, so
-  // the clearance half runs [splitX - bossLen, splitX] and its outer mouth is at
-  // x = splitX - bossLen. Probe at a radius the chamfer has opened but the plain
-  // bore has not: empty in the chamfer's own span, solid just past it.
-  const clearR = (p.bossScrewDia + 0.1) / 2; // M3 max major dia
-  const ch = Math.min(0.5, p.bossWall - 0.2);
-  const mouth = splitX - p.bossLen;
-  const ring = clearR + ch - 0.1;
-  const inChamfer = meets(probe(ring, mouth, 0.1));
-  const pastChamfer = meets(probe(ring, mouth + ch + 0.1, 0.5));
-  check(inChamfer < 0.01,
-    `clearance mouth chamfered to r>=${ring.toFixed(2)} (${inChamfer.toFixed(3)} mm3 of material in the chamfer)`);
-  check(pastChamfer > 1.5,
-    `chamfer runs out after ${ch} mm, bore back to r=${clearR.toFixed(2)} (${pastChamfer.toFixed(2)} mm3)`);
-  // ...and the pilot end is NOT chamfered, so the two ends stay tellable apart.
-  const pilotMouth = meets(probe(ring, splitX + p.bossLen - 0.6, 0.5));
-  check(pilotMouth > 1.5, `pilot mouth left sharp (${pilotMouth.toFixed(2)} mm3 of material at the same radius)`);
+  let overlap = 0;
+  for (let i = 0; i < pieces.length; i++)
+    for (let j = i + 1; j < pieces.length; j++) {
+      try { overlap += measureVolume(pieces[i].clone().intersect(pieces[j].clone())); } catch { /* disjoint */ }
+    }
+  check(overlap < 0.01, `no interference between pieces (${overlap.toFixed(3)} mm3)`);
 }
 
 // ---------------------------------------------------------------------------

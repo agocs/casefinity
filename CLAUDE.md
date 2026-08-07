@@ -43,7 +43,7 @@ Keep these in sync when behavior changes; don't create new top-level docs.
 - `docs/models.md` — per-model catalog: fidelity vs ground truth, **form
   layout for every model**, intentional deviations, known limitations
 - `docs/printing.md` — user-facing print guide: export formats, clearances,
-  bed fitting, screw bosses
+  bed fitting, how the split pieces join
 - `docs/reverse-engineering.md` — porting workflow, OCCT traps, recovered
   geometry findings per model
 - `docs/casefinity-spec.md` — the proposed interop spec; rendered to

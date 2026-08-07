@@ -606,7 +606,16 @@ drift lever <code>n·P/2</code>.</li>
 <li><strong>NOTE-8.5.</strong> The liner&#39;s own perimeter is split into bed-fitting dovetail pieces
 (<code>splitPieces</code>); those seams are a separate, generously-cleared joint
 (<code>BOARDER_DOVETAIL_CLEAR = 0.20 mm</code>) and do not interact with the module grid
-clearance analysed here.</li>
+clearance analysed here. Each seam is closed by a <strong>bulkhead</strong> filling the
+U-channel cross-section, <code>WALL_THICK</code> either side of the seam plane and running
+the frame&#39;s full height, with the dovetail through it as a <strong>vertical prism</strong> —
+a solid tang on one piece, a slot grown by <code>BOARDER_DOVETAIL_CLEAR</code> on the
+other. Pieces therefore assemble by sliding together <strong>vertically</strong>, and the
+joint constrains both in-plane axes over the full height; vertical separation is
+unconstrained by design (it is the assembly direction, and the case retains the
+frame). All of this is liner-internal: it consumes only border material outboard
+of the cavity wall, so it changes no interface dimension and <code>WALL_THICK</code> stays
+free under INV-2.</li>
 <li><strong>NOTE-8.6.</strong> The single tightest interface is the perimeter <strong>bin-rib↔liner-groove</strong>
 relief (§4.3, line-to-line width). It is the first place an over-extruded /
 oversized print binds. If perimeter bins feel tight while interior (bin↔bin) joints

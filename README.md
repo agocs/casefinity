@@ -53,7 +53,7 @@ npm run smoke    # build every model headlessly, assert against ground truth
 **Printing something?**
 
 - **[Printing guide](docs/printing.md)** — export formats, print clearances,
-  fitting an oversized frame to your bed, and the screw-boss hardware
+  fitting an oversized frame to your bed, and how the pieces join
 - **[Case dimensions](docs/case-dimensions.md)** — measured hard case interiors
   and how to enter them
 - **[Model catalog](docs/models.md)** — every model, its fidelity to the

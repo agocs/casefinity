@@ -443,7 +443,16 @@ only its own `2c = 0.20 mm`:
 - **NOTE-8.5.** The liner's own perimeter is split into bed-fitting dovetail pieces
   (`splitPieces`); those seams are a separate, generously-cleared joint
   (`BOARDER_DOVETAIL_CLEAR = 0.20 mm`) and do not interact with the module grid
-  clearance analysed here.
+  clearance analysed here. Each seam is closed by a **bulkhead** filling the
+  U-channel cross-section, `WALL_THICK` either side of the seam plane and running
+  the frame's full height, with the dovetail through it as a **vertical prism** —
+  a solid tang on one piece, a slot grown by `BOARDER_DOVETAIL_CLEAR` on the
+  other. Pieces therefore assemble by sliding together **vertically**, and the
+  joint constrains both in-plane axes over the full height; vertical separation is
+  unconstrained by design (it is the assembly direction, and the case retains the
+  frame). All of this is liner-internal: it consumes only border material outboard
+  of the cavity wall, so it changes no interface dimension and `WALL_THICK` stays
+  free under INV-2.
 - **NOTE-8.6.** The single tightest interface is the perimeter **bin-rib↔liner-groove**
   relief (§4.3, line-to-line width). It is the first place an over-extruded /
   oversized print binds. If perimeter bins feel tight while interior (bin↔bin) joints

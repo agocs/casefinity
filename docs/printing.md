@@ -1,8 +1,8 @@
 # Printing guide
 
 Practical notes on getting a printable, well-fitting result: which export format
-to use, how to fit an oversized frame onto your bed, how to screw the pieces
-together, and what clearances to dial in.
+to use, how to fit an oversized frame onto your bed, how the pieces join, and
+what clearances to dial in.
 
 ## Choosing an export format
 
@@ -60,82 +60,36 @@ piece separately.
 `npm run scaling` asserts that across bed sizes every piece is one clean solid and
 fits the bed.
 
-## Screw bosses
+## How the pieces join
 
-The dovetails join the pieces only at floor level — the tang band lies between the
-cavity wall and the case wall, where the frame is just the floor slab — so a tall
-assembled frame can still splay apart at the mouth.
+Every seam — the four corner joints and every extra bed-split seam — is closed by
+a **bulkhead**: a wall filling the whole U-channel cross-section, one wall
+thickness either side of the seam, running the full height of the frame. The
+dovetail runs through it as a **vertical prism**: a solid tang on one piece, a
+matching slot on the other.
 
-Ticking **Screw bosses at split lines** (off by default) adds a pad either side of
-every seam, at the rim on the inside of the case wall: a **clearance hole** on the
-piece that carries the tang, and a concentric **thread-forming pilot hole** on its
-mate. Tightening a plastic screw then pulls the tang home and closes the joint at
-the top.
+So the joint holds over the frame's full height rather than only down at the
+floor, which is what stops a loaded frame splaying apart at the mouth. (An
+earlier version of the generator offered optional screw bosses at the seams to
+fix exactly that; the full-height joint removes the need for them, and they are
+gone.)
 
-### Hole sizing
+### Assembling
 
-Hole sizes follow the [REMFORM® II brochure](https://taptite.com/assets/files/REMFORM-II-BROCHURE-CONTI-REMINC-2023.pdf)
-(REMINC/CONTI, pp. 2–3): the clearance hole is the screw's **maximum major
-diameter**, and the pilot hole is the **recommended hole size** — a material
-factor times the minimum major diameter.
+**The pieces slide together vertically.** Stand the end cap up, line the rail's
+tang up with the cap's slot, and drop the rail down into it. The dovetail then
+locks both horizontal directions — the joint cannot be pulled apart in-plane.
 
-The factor defaults to **0.80**, the brochure's value for PET / PBT / PC / PS.
-PETG is not listed, and PET and PC are its closest relatives. Printing something
-else, use your own row from the brochure:
+Nothing constrains the pieces *vertically*: that is the direction they go
+together, and the case itself holds the assembled frame down once it is in.
 
-| Material | Factor |
-|---|---|
-| PP, PE, PA 6/6.6, ABS, ASA | 0.75 |
-| PET, PBT, PC, PS (default) | 0.80 |
-| 30% glass-filled | 0.82–0.85 |
+If the pieces bind or the joint is loose, that is **Dovetail clearance** — see
+*Print clearances* above.
 
-At the M3 default that gives a **3.10 mm clearance hole** and a **2.40 mm pilot**,
-in a **7.9 mm pad** — about 2.6 × nominal, heavier than the 2 × moulding rule of
-thumb because the boss prints with its axis horizontal, so hoop stress at the hole
-runs partly across layer lines.
-
-### Which end takes the screw
-
-The clearance hole's outer mouth carries a **45° × 0.5 mm lead-in chamfer**; the
-pilot hole and both seam-facing ends are left sharp. Besides easing the screw in,
-that is the point of it: 3.10 mm and 2.40 mm holes in a printed part are not
-reliably tellable apart by eye, and the chamfered mouth is. **Drive the screw
-into the funnelled hole** — it is always on the piece carrying the dovetail tang.
-
-6 mm of engagement per side means the defaults want an **M3 × 12 thread-forming
-screw for plastics** — REMFORM, Plastite, PT or similar, **not** a machine screw.
-
-The pad's whole underside is a 45° ramp to the wall, so it prints without support.
-
-### Three things to know before you print
-
-- **Driver access.** The screw drives *along* the channel, so a straight driver
-  run has to fit between the boss and the nearest full-height obstruction. At the
-  default divider spacing that is about **57 mm** of clear channel — fine for a
-  stubby driver or a ball-end key, tight for an inline bit and handle. Fewer
-  **dividers per long side** gives more room. No other screw axis would cross the
-  seam, so this is inherent rather than a bug.
-- **Shallow cases steepen the gusset.** On a case too shallow for the full 45°
-  gusset — roughly under 20 mm of depth at the M3 defaults — the ramp is clamped
-  to land on the floor slab and becomes steeper than 45°, which wants support.
-  Bosses are dropped entirely if the pad cannot fit between the rim and the floor,
-  or across the border width.
-- **Very shallow cases: the gusset clips out through the wall.** The pad's outer
-  face is flat and placed where the wall runs at the *rim*, sunk 0.4 mm into it,
-  while the boss feature is about `2 × pad` tall — 15.8 mm at the M3 defaults.
-  Over that height the wall leans inward, by the taper and then much faster once
-  the case's 19.05 mm bottom corner radius starts rolling it in, so the pad sits
-  progressively deeper in the wall toward its foot and eventually breaks out
-  through the far side. Measured at the defaults: nothing at 27 mm of case depth,
-  **0.7 mm proud at 25 mm, 5.1 mm proud at 20 mm** — so the threshold is around
-  26 mm, and such a piece would not seat in a real case anyway.
-
-  This is **not fixed on purpose**: every real hard case is 100 mm-plus deep, and
-  having the boss follow the fillet would trade a flat, drillable face for a
-  curved one on geometry nobody prints. On a genuinely shallow liner, either leave
-  the bosses off or shrink the pad — a smaller **Boss screw size** or **Boss
-  material around hole** lowers the whole feature, and a thicker wall gives it
-  more to hide in.
+Near the very bottom of the frame the joint thins out, because the case's bottom
+corner radius rolls the outer wall inward until there is no channel left for a
+bulkhead to fill. At the defaults the joint still engages over about 90 mm of the
+110 mm height.
 
 ## Interoperability warning
 

@@ -10,7 +10,7 @@ self-derived values instead.
 
 | Model | ID | Fidelity vs ground truth |
 |---|---|---|
-| Perimeter (frame) | `perimeter` | bbox exact at nominal; geometry measured at the original 1.2 mm wall / 1 mm floor |
+| Perimeter (frame) | `perimeter` | bbox exact at nominal; total volume within 3.0% at the original 1.2 mm wall / 1 mm floor (the residual is the gusset-ramp foot) |
 | Smooth Perimeter | `smooth-perimeter` | bbox exact; same foot and divider simplifications as the perimeter |
 | Perimeter (square corners, beta) | `perimeter-square-corners` | no ground truth — new design |
 | Bin (no lid) | `bin-no-lid` | volume within 0.02% |
@@ -28,9 +28,11 @@ Three variants share one build and one parameter set (`perimeterParams` in
 
 **Perimeter (frame)** — the flagship. A U-channel border around a central cavity,
 with grid bumps, a dovetail split into 4 pieces (or auto-subdivided further to fit
-a printer bed), optional screw bosses at every seam, configurable dividers, the
-case bottom-radius, and print clearances. Prints as dovetailed pieces that seat in
-the case. Fidelity is measured at the original 1.2 mm wall / 1 mm floor — the
+a printer bed), configurable dividers, the case bottom-radius, and print
+clearances. Every seam is closed by a full-height bulkhead with the dovetail
+running through it as a vertical prism, so the pieces lock together from the floor
+to the rim and assemble by sliding together vertically. Prints as dovetailed
+pieces that seat in the case. Fidelity is measured at the original 1.2 mm wall / 1 mm floor — the
 shipped defaults are deliberately heavier, see *Intentional deviations* below.
 It is the slowest model to build (~14 s).
 
@@ -42,7 +44,7 @@ a **squared** rather than rounded cavity corner, so a bin can occupy the
 corner-most grid cell flush. The outer wall is unchanged, so it still fits the
 case's rounded corner and bottom. No such variant exists in the originals, so
 there is no ground truth; smoke locks a self-derived bbox of 350 × 250 × 110 and
-a volume of 757,147 at the 3 mm wall / 4 mm floor / 3 mm grid-bump defaults
+a volume of 846,992 at the 3 mm wall / 4 mm floor / 3 mm grid-bump defaults
 (including the near-floor wall thickening — see "Extend FLOOR_THICK" in
 `perimeter.ts`), and `npm run scaling perimeter-square-corners` guards the
 squared-corner invariant.
@@ -66,12 +68,8 @@ draft.
 *Dovetails* subsection: Dovetail width, Dovetail depth, Dovetail angle, Dovetail
 clearance.
 
-**Screw bosses** (collapsed) — Screw bosses at split lines (needs split), Boss
-screw size (nominal dia), Pilot hole factor (× min screw dia), Boss length (each
-side of seam), Boss material around hole.
-
-See [printing.md](printing.md) for what the bed, dovetail, and screw-boss
-parameters actually do to the printed result.
+See [printing.md](printing.md) for what the bed and dovetail parameters actually
+do to the printed result.
 
 ## The bins
 
@@ -209,12 +207,14 @@ slab at its root and another at its tip.
 
 ## Known limitations
 
-- **Screw-boss gussets clip out through the wall on very shallow cases** —
-  around 26 mm of case depth and below at the M3 defaults (0.7 mm proud at 25 mm,
-  5.1 mm at 20 mm), because the boss feature is taller than the clean run between
-  the rim and the case's bottom corner radius. Accepted rather than fixed; see
-  *Screw bosses* in [printing.md](printing.md) for the mechanism and the ways
-  around it.
+- **The seam joints constrain nothing vertically.** A dovetail locks the two
+  in-plane axes; pieces still lift apart upward. That is the assembly direction
+  by design — the pieces slide together vertically — and the case holds the
+  assembled frame down.
+- **Near the floor the joint thins out.** Below the case's bottom corner radius
+  the U-channel narrows to nothing, so the bulkhead and the tang are trimmed away
+  there. At the defaults the joint still engages over about 90 mm of the 110 mm
+  height. Inherent to the case's rounded bottom, not a modelling gap.
 - The perimeter's foot is a flat floor rather than the original's gusseted ramp,
   and its dividers are evenly spaced rather than cloning the original's ad-hoc
   per-edge layout. Both are deliberate simplifications.
