@@ -569,6 +569,13 @@ const SUITES = {
   // just enough additional per-build cost to tip the heaviest of these
   // (bedWidth=300×150) over the shared heap's limit when it ran as an 8th
   // variant alongside the plain-split ones above.
+  //
+  // That constraint was mostly self-inflicted and is now gone: the runner never
+  // yielded, so nothing the checks allocated was ever actually freed (see
+  // `collect`). Even so bedWidth=300×150 kept aborting here, as the 4th variant
+  // of its OWN suite, until that was fixed; the heap now sits flat at 611 MiB
+  // across all four. The split stays because a process per suite is also what
+  // keeps one suite's blow-up from taking the others down.
   "perimeter-bed": {
     model: "perimeter",
     variants: [
@@ -703,8 +710,10 @@ const SUITES = {
 const only = process.argv[2];
 
 // With no model arg, run each model in its own process: the OCCT WASM heap is
-// small and the heavy perimeter builds exhaust it if they follow the bins in
-// one process. Each child runs one suite in a fresh heap.
+// capped at 2 GiB per process and the heavy perimeter builds used to exhaust it
+// if they followed the bins in one. Each child runs one suite in a fresh heap.
+// (`collect` below is what stopped the heap growing without bound in the first
+// place; per-suite processes are now isolation rather than necessity.)
 if (!only) {
   const { spawnSync } = await import("node:child_process");
   const self = fileURLToPath(import.meta.url);
@@ -719,6 +728,22 @@ if (!only) {
 const ids = [only];
 let failures = 0;
 let total = 0;
+
+// Give the WASM heap back. replicad frees an OCCT handle from a
+// FinalizationRegistry callback, and V8 schedules those callbacks as a task
+// rather than running them inside gc() — so a synchronous loop, however many
+// times it calls gc(), never actually releases anything. The yield in the
+// middle is what makes this work, and it is not optional: measured over 300
+// identical probes, gc() alone left the heap at 515 MiB and gc()/yield/gc()
+// left it at 69 MiB. (Deleting the probes' own temporaries by hand does NOT
+// substitute for it — most of the memory belongs to intermediates inside
+// replicad's helpers, which only the registry can reach.) The trailing gc()
+// sweeps whatever the freed handles turned up.
+const collect = async () => {
+  globalThis.gc?.();
+  await new Promise((resolve) => setImmediate(resolve));
+  globalThis.gc?.();
+};
 
 for (const id of ids) {
   const suite = SUITES[id];
@@ -761,14 +786,18 @@ for (const id of ids) {
       // OCCT temporaries per check, and on the heaviest late variants the WASM
       // heap otherwise exhausts mid-variant (booleans start throwing, which
       // slabVolume's guard reads as zero volumes — a phantom FAIL).
-      globalThis.gc?.();
+      await collect();
     }
     if (xfailReason && !variantFailed) {
       console.log(`      NOTE known-fail variant now PASSES — remove the xfail marker`);
     }
     // Free OCCT handles so the small WASM heap survives all the heavy builds.
     for (const s of ctx.shapes) s.delete?.();
-    globalThis.gc?.();
+    await collect();
+    console.log(
+      `      (heap ${(oc.HEAPU8.byteLength / 1024 ** 2).toFixed(0)} MiB of the ` +
+        `2048 MiB this process can address)`,
+    );
   }
 }
 

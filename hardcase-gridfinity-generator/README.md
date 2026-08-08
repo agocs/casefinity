@@ -50,9 +50,15 @@ asserts invariants that must hold at *any* parameters, catching hardcoded
 constants and non-scaling logic without a Fusion round-trip. For example: the
 double-sided floor tracks `OVERALL_HT/2`; every perimeter piece is one clean
 solid; the bounding box matches the parameter formula. Each model runs in its own
-process, because the OCCT WASM heap is small. Treat it as a regression gate —
-green unless a *new* invariant breaks. A couple of pre-existing fragilities are
-marked `XFAIL`.
+process, because the OCCT WASM heap is capped at 2 GiB per process. Treat it as a
+regression gate — green unless a *new* invariant breaks. A couple of pre-existing
+fragilities are marked `XFAIL`.
+
+Its runner yields to the event loop between checks (`collect()`). That is not
+cosmetic: replicad frees OCCT handles from a `FinalizationRegistry`, whose
+callbacks V8 only runs as a scheduled task, so the harness's `gc()` calls
+released nothing at all while the loop stayed synchronous. The heap climbed
+until a build aborted mid-suite. Keep the yield if you touch that loop.
 
 **`npm run check-3mf`** validates every model's 3MF package structure and confirms
 each part's mesh is watertight and outward-wound. 3MF stores no facet normals, so

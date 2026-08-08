@@ -135,6 +135,15 @@ Reverse-engineering/verification scripts (Node, in `scripts/`):
 - `importSTEP` returns a `Compound` for multi-solid files, and booleans on
   compounds silently misbehave — always explode via
   `occt-utils.importStepSolids()` first.
+- Freeing OCCT memory in Node needs a **yield**, not just `gc()`. replicad
+  releases handles from a `FinalizationRegistry`, and V8 runs those callbacks as
+  a scheduled task, so a synchronous loop never actually frees anything however
+  often it calls `gc()` — this is what made `scaling-test.mjs` abort on its
+  heaviest variant. Use its `collect()` pattern (gc → `setImmediate` → gc).
+  Measured over 300 identical probes: 515 MiB heap with gc alone, 69 MiB with
+  the yield. Deleting your own temporaries is good hygiene but does **not**
+  substitute — most of the memory belongs to intermediates inside replicad's
+  own helpers, which only the registry can reach.
 - OCCT geometry traps encountered: `shell()` fails on tapered rounded-rect
   lofts (build outer/inner lofts and cut instead); extending a cutter past a
   tapered solid's ends leaves boolean debris (use coplanar caps — see
