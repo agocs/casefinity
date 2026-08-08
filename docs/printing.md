@@ -75,11 +75,11 @@ original design does. It is a genuine fold rather than a hollow box: the
 bulkhead is slit along the dovetail's centreline and the sheet drawn out
 through it, so the tang's inside is continuous with the frame's own hollow.
 So a thin-walled frame never buries a solid slug in the
-middle of a seam, and a seam costs materially less filament the thinner the
-wall — at the original 1.2 mm liner thickness the fold removes about 3% of
-the model's volume; at the shipped 3 mm default, where the tang's neck starts
-out narrower, it's closer to 0.4%. At heavy wall thicknesses the fold has
-nothing left to hollow and the tang is simply solid.
+middle of a seam, and the saving grows as the wall gets thinner — at the
+original 1.2 mm liner thickness a split perimeter comes out about 4.4% lighter
+than before the fold existed; at the shipped 3 mm default, where the tang's neck
+starts out narrow relative to the wall, about 0.3%. At heavy wall thicknesses
+the fold has nothing left to hollow and the tang is simply solid.
 
 `dovetailWidth` is the tang's width **at the seam plane**, and
 `dovetailAngle` is the true angle of its flank.
