@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "smoke": "node --expose-gc scripts/smoke.mjs",
+    "smoke": "node scripts/smoke.mjs",
     "test:session": "node scripts/session-test.mjs",
     "check-3mf": "node scripts/check-3mf.mjs",
     "build-spec": "node scripts/build-spec.mjs",

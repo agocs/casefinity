@@ -289,7 +289,9 @@ that is missing. Assert the feature.
    numbers.
 3. Register it in `src/models/index.ts`.
 4. Verify with `diff-model.mjs` against the matching ground-truth STEP.
-5. Add the expected bounding box and volume to `scripts/smoke.mjs` and run
-   `npm run smoke`.
+5. Add the expected bounding box and volume to `scripts/smoke.mjs`, assign the
+   model to one of its `MODEL_UNITS` (its own unit if it is perimeter-scale,
+   `bins` if it builds in seconds — the suite fails on an unassigned model), and
+   run `npm run smoke`.
 6. Document the model's form layout and any deliberate gaps in
    [models.md](models.md).

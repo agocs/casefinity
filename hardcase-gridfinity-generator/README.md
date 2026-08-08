@@ -35,6 +35,16 @@ the ground truth. Expected values live in a table at the top of
 alone would not catch a functional regression — notably the with-lid retention
 interference, which must be present **and** confined to the lock zone.
 
+It runs as a pool of child processes, one per *unit* (`node scripts/smoke.mjs`
+with no argument is the pool; `node scripts/smoke.mjs <unit>` runs one in the
+foreground, and `SMOKE_JOBS` caps the pool, default 6). The split is not only
+for wall clock — 95 s instead of ~7 min here — but for memory: the OCCT WASM
+module hard-codes a 2 GiB maximum heap **per process**, and three
+perimeter-scale builds in one process used to abort. No unit holds more than one
+of them, so each gets a fresh 2 GiB and a new check need not budget against a
+shared heap. Every registered model must be assigned to a unit in `MODEL_UNITS`;
+the `bins` unit fails the suite if one is not.
+
 **`npm run scaling`** builds every model across a spread of parameter values and
 asserts invariants that must hold at *any* parameters, catching hardcoded
 constants and non-scaling logic without a Fusion round-trip. For example: the
@@ -129,8 +139,9 @@ together into a porting workflow.
    numbers.
 3. Register it in `src/models/index.ts`.
 4. Verify with `node scripts/diff-model.mjs <id> <truth.step>`.
-5. Add the expected bounding box and volume to `scripts/smoke.mjs`, then run
-   `npm run smoke`.
+5. Add the expected bounding box and volume to `scripts/smoke.mjs` and assign
+   the model to a unit in that file's `MODEL_UNITS` — a perimeter-scale model
+   gets its own, a cheap one joins `bins` — then run `npm run smoke`.
 6. Document it in [docs/models.md](../docs/models.md) — including its form layout
    and any deliberate gaps.
 
