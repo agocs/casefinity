@@ -36,7 +36,7 @@ import { draftAngleParam, draftedProfile, gridCenters, interlockDims, ribWidthPa
  *
  * The split seams are joined over the FULL height of the frame (see splitPieces).
  * Each seam is closed by a bulkhead filling the U-channel cross-section, and the
- * dovetail runs through it as a vertical prism — solid tang on one piece, matching
+ * dovetail runs through it as a vertical prism — a `wallThick` fold on one piece, matching
  * slot on the other. So the pieces assemble by sliding together vertically, and
  * the joint constrains both in-plane axes from the floor to the rim. Vertical
  * separation is deliberately unconstrained: that IS the assembly direction, and
@@ -428,29 +428,74 @@ function splitPieces(frame: Shape3D, p: ParamValues, wallInner: Shape3D): Shape3
   const xcEnd = (length / 2 + p.overallLength / 2) / 2; // end-cap border centre (X)
   const w = p.dovetailWidth;
   const depth = p.dovetailDepth;
-  const flare = depth * Math.tan((p.dovetailAngle * Math.PI) / 180);
-  const c = p.dovetailClear; // socket grown by this; tang stays nominal
+  const tanA = Math.tan(deg(p.dovetailAngle));
+  const secA = 1 / Math.cos(deg(p.dovetailAngle));
+  const c = p.dovetailClear; // socket offset by this; tang stays nominal
+  const wb = p.wallThick; // the bulkhead's thickness, and the fold's own wall thickness (seamCore's erosion amount)
+  const OVERLAP = 2; // how far a profile's base sits inside its owning piece
   const big = Math.max(p.overallLength, p.overallWidth); // generous half-plane bound
 
-  // Dovetail trapezoid crossing a seam. `axis` is the direction the tang
+  /** Seam-local (along-axis, across-axis) to model (x, y). */
+  const pt = (axis: "X" | "Y", a: number, b: number): [number, number] =>
+    axis === "X" ? [a, b] : [b, a];
+
+  // Dovetail profile crossing a seam. `axis` is the direction the tang
   // protrudes (and along which the joint locks): "X" for a seam cutting a long
   // rail, "Y" for one cutting an end cap. `pos` is the seam coordinate on that
-  // axis, `band` the centre coordinate on the other axis, `dir` = ±1 the
-  // protrusion direction. The base sits 2 mm inside the owning segment so the
-  // fuse overlaps with no coincident-face sliver; the flared tip locks it.
-  // `grow` enlarges it into a socket (tip and both flanks) by the joint gap.
-  const seamTang = (axis: "X" | "Y", pos: number, band: number, dir: 1 | -1, grow = 0): Drawing => {
-    const a0 = pos - dir * 2;
-    const a1 = pos + dir * (depth + grow);
-    const hw = w / 2 + grow;
-    const hwTip = w / 2 + flare + grow;
-    const pt = (a: number, b: number): [number, number] => (axis === "X" ? [a, b] : [b, a]);
-    return draw(pt(a0, band - hw))
-      .lineTo(pt(a0, band + hw))
-      .lineTo(pt(a1, band + hwTip))
-      .lineTo(pt(a1, band - hwTip))
+  // axis, `band` the centre coordinate on the other axis, `dir` = +/-1 the
+  // protrusion direction.
+  //
+  // A hexagon, not a trapezoid: behind the seam plane it is a constant-width
+  // rectangle, and only past the seam does the flank rise at tan(angle). That
+  // is what makes `dovetailAngle` the true flank angle and `dovetailWidth` the
+  // true width at the seam plane. An earlier trapezoid ran the flare across
+  // the base overlap as well, flattening the flank to 22.4 deg at the
+  // defaults. The base sits OVERLAP inside the owning piece so the fuse
+  // overlaps with no coincident-face sliver; the flared tip is what locks.
+  //
+  // `d` is a SIGNED PERPENDICULAR offset, which is what makes `dovetailClear`
+  // a real normal gap: offsetting a flank by `d` moves it `d * secA` across the
+  // band, while the tip face moves `d` along the axis. The base face does not
+  // move -- it lives inside the owning piece and exists only to avoid that
+  // sliver.
+  const seamProfile = (axis: "X" | "Y", pos: number, band: number, dir: 1 | -1, d = 0): Drawing => {
+    const hwBase = w / 2 + d * secA;
+    const reach = depth + d;
+    const hwTip = hwBase + reach * tanA;
+    const a0 = pos - dir * OVERLAP;
+    const a1 = pos + dir * reach;
+    const q = (a: number, b: number) => pt(axis, a, b);
+    return draw(q(a0, band - hwBase))
+      .lineTo(q(a0, band + hwBase))
+      .lineTo(q(pos, band + hwBase))
+      .lineTo(q(a1, band + hwTip))
+      .lineTo(q(a1, band - hwTip))
+      .lineTo(q(pos, band - hwBase))
       .close();
   };
+
+  // The tang's void: the very same profile, offset inward by one wall thickness.
+  // Cutting it from the seam bulkheads is what turns a solid dovetail prism into
+  // a fold, and taking it from `seamProfile` rather than building a second shape
+  // is what makes "one wall thick everywhere" structural instead of arithmetical.
+  //
+  // The void runs the profile's WHOLE length, base overlap included, so it opens
+  // into the channel behind the seam. The tang is therefore a folded sheet --
+  // two flanks and a tip face, closed at the bottom by the fillet-narrowed
+  // channel and open at the back -- not a closed box with the end web as its
+  // lid. That is what the ground truth does: at mid-height its rail's end web
+  // carries a slot on the dovetail centreline (~1.5 mm at the web, widening to
+  // 5.5 mm one millimetre out) rather than bridging across. A fold that sealed
+  // itself off at the narrow end would be a drawn pocket, not a fold.
+  //
+  // Returns null once the erosion eats the profile: past that thickness there
+  // is no void to remove and the tang is simply solid -- no caller branch, no
+  // new parameter. Both degeneracies are checked: the flanks meeting in the
+  // middle, and the tip face reaching back past the seam plane.
+  const seamCore = (axis: "X" | "Y", pos: number, band: number, dir: 1 | -1): Drawing | null =>
+    w / 2 - wb * secA < 0.05 || depth - wb < 0.05
+      ? null
+      : seamProfile(axis, pos, band, dir, -wb);
   const rect = (x0: number, x1: number, y0: number, y1: number): Drawing =>
     drawRectangle(x1 - x0, y1 - y0).translate((x0 + x1) / 2, (y0 + y1) / 2);
   const solid = (d: Drawing): Shape3D =>
@@ -490,10 +535,17 @@ function splitPieces(frame: Shape3D, p: ParamValues, wallInner: Shape3D): Shape3
    * any per-piece region intersect, so the existing region algebra divides it:
    *
    *   tang piece   region = halfplane u tangFootprint
-   *                -> end web + a SOLID dovetail prism
+   *                -> end web, slit on the dovetail centreline, with the tang
+   *                   folded out of the slit to wallThick
    *   socket piece region = halfplane - grownTang
    *                -> end web pierced by the dovetail mouth, plus flanks and a
    *                   back for the slot
+   *
+   * BOTH webs are pierced, then, and symmetrically: the tang's fold opens back
+   * through its own web into the channel (seamCore runs the profile's whole
+   * length), and the socket's mouth opens forward through its web into the slot.
+   * The seam is still closed — by the folded box the tang forms rather than by a
+   * flat plate across it.
    *
    * Two flat 2-D pieces per seam are enough, because channelSolid trims them to
    * the wall profile:
@@ -505,16 +557,20 @@ function splitPieces(frame: Shape3D, p: ParamValues, wallInner: Shape3D): Shape3
    *     leave part of it open. Everything inboard of the cavity wall is removed
    *     by channelSolid's own cavity cut, and the half-plane cannot reach the
    *     opposite rail.
-   *   - the socket footprint dilated by one wall thickness, `seamTang(...,
+   *   - the socket footprint dilated by one wall thickness, `seamProfile(...,
    *     dovetailClear + wallThick)`. It contains the tang footprint (so the tang
-   *     piece gets a solid prism) and stands `wallThick` off the slot on both
-   *     flanks and at its far end (so the socket piece gets flanks and the tang
-   *     bottoms out against material).
+   *     piece gets the dovetail prism the fold is cut from) and stands
+   *     `wallThick` off the slot on both flanks and at its far end (so the
+   *     socket piece gets flanks and the tang bottoms out against material).
    *
    * A collar wider than the channel is trimmed, not clamped — a dovetail wider
    * than the border just merges into the walls, which is if anything stronger.
+   *
+   * The tang is a FOLD, not a solid: seamCore removes its interior, so the
+   * dovetail is one wall thick all round — like the rest of the frame, and like
+   * the ground truth. Above roughly wallThick = w/2 * cos(angle) the erosion
+   * degenerates and it comes out solid again on its own.
    */
-  const wb = p.wallThick;
   const seams: Seam[] = [];
   for (const sy of [1, -1] as const) {
     // Corner joints: the rail owns the tang and it protrudes outward into the cap.
@@ -535,9 +591,31 @@ function splitPieces(frame: Shape3D, p: ParamValues, wallInner: Shape3D): Shape3
     return axis === "X" ? rect(pos - wb, pos + wb, b0, b1) : rect(b0, b1, pos - wb, pos + wb);
   };
   const footprint = seams
-    .map((s) => web(s).fuse(seamTang(s.axis, s.pos, s.band, s.dir, c + wb)))
+    .map((s) => web(s).fuse(seamProfile(s.axis, s.pos, s.band, s.dir, c + wb)))
     .reduce((a, b) => a.fuse(b));
-  const joined = frame.fuse(channelSolid(p, wallInner, footprint));
+  // Hollow the tangs BEFORE the frame is fused in: cutting from `bulkheads`
+  // rather than `joined` confines the cut to the channel's own material, so it
+  // can never reach the frame's actual walls or floor (channelSolid is
+  // strictly the hollow between them). The floor itself rarely reaches the
+  // fold -- the same measurement quoted in this file's header, that the bottom
+  // fillet pulls the outer footprint inboard of the corner tang band -- so it
+  // is not what closes the fold at the bottom. What does, at the shipped
+  // bottom-corner radius, is that same fillet: it narrows the channel below the
+  // eroded band (around z ~= 2.9 mm) until there is no bulkhead material left
+  // for seamCore to remove, so the tang comes out solid there. The fold is
+  // therefore closed at the bottom and open at the top, on a floor steeper than
+  // 30 deg -- it prints without support and still assembles by sliding down.
+  // Open at the BACK too, into the channel, which is what makes it a fold
+  // rather than a pocket; see seamCore.
+  // The socket piece's region already subtracts the clearance-grown tang, so it
+  // never owned the material being removed here and needs no change.
+  const bulkheads = channelSolid(p, wallInner, footprint);
+  const cores = seams
+    .map((s) => seamCore(s.axis, s.pos, s.band, s.dir))
+    .filter((d): d is Drawing => d !== null);
+  const joined = frame.fuse(
+    cores.length ? (bulkheads.cut(solid(cores.reduce((a, b) => a.fuse(b)))) as Shape3D) : bulkheads,
+  );
 
   // Slice a featured rail/cap `body` (already the U-channel wall profile) into N
   // in-line segments along `axis`, joined by a wall-profile dovetail at each
@@ -563,8 +641,8 @@ function splitPieces(frame: Shape3D, p: ParamValues, wallInner: Shape3D): Shape3
       axis === "X" ? rect(a0, a1, -big, big) : rect(-big, big, a0, a1);
     return Array.from({ length: n }, (_, i) => {
       let region = seg(bounds[i], bounds[i + 1]);
-      if (i < n - 1) region = region.fuse(seamTang(axis, cuts[i], band, 1)); // male tang past the far seam
-      if (i > 0) region = region.cut(seamTang(axis, cuts[i - 1], band, 1, c)); // socket at the near seam
+      if (i < n - 1) region = region.fuse(seamProfile(axis, cuts[i], band, 1)); // male tang past the far seam
+      if (i > 0) region = region.cut(seamProfile(axis, cuts[i - 1], band, 1, c)); // socket at the near seam
       return body.clone().intersect(solid(region));
     });
   };
@@ -580,8 +658,8 @@ function splitPieces(frame: Shape3D, p: ParamValues, wallInner: Shape3D): Shape3
     const y0 = sy > 0 ? 0 : -big;
     const y1 = sy > 0 ? big : 0;
     const region0 = rect(-splitX, splitX, y0, y1)
-      .fuse(seamTang("X", splitX, sy * yc, 1))
-      .fuse(seamTang("X", -splitX, sy * yc, -1));
+      .fuse(seamProfile("X", splitX, sy * yc, 1))
+      .fuse(seamProfile("X", -splitX, sy * yc, -1));
     const kind = sy > 0 ? "groove" : "rib";
     const rail = applyGridFeatures(div(joined.clone().intersect(solid(region0)), sy), p, wallSpec("Y", sy, kind));
     return sliceSegments(rail, "X", nLong, cutsLong, sy * yc);
@@ -594,8 +672,8 @@ function splitPieces(frame: Shape3D, p: ParamValues, wallInner: Shape3D): Shape3
     const x1 = ex > 0 ? big : -splitX;
     const kind = ex > 0 ? "rib" : "groove";
     const cap = applyGridFeatures(joined.clone().intersect(solid(rect(x0, x1, -big, big))), p, wallSpec("X", ex, kind))
-      .cut(solid(seamTang("X", ex * splitX, yc, ex, c)))
-      .cut(solid(seamTang("X", ex * splitX, -yc, ex, c)));
+      .cut(solid(seamProfile("X", ex * splitX, yc, ex, c)))
+      .cut(solid(seamProfile("X", ex * splitX, -yc, ex, c)));
     return sliceSegments(cap, "Y", nEnd, cutsEnd, ex * xcEnd);
   };
 

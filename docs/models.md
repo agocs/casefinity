@@ -29,12 +29,18 @@ Three variants share one build and one parameter set (`perimeterParams` in
 **Perimeter (frame)** — the flagship. A U-channel border around a central cavity,
 with grid bumps, a dovetail split into 4 pieces (or auto-subdivided further to fit
 a printer bed), configurable dividers, the case bottom-radius, and print
-clearances. Every seam is closed by a full-height bulkhead with the dovetail
-running through it as a vertical prism, so the pieces lock together from the floor
-to the rim and assemble by sliding together vertically. Prints as dovetailed
+clearances. Every seam carries a full-height bulkhead with the dovetail
+running through it as a vertical prism — folded to one wall thickness, like the rest
+of the frame — so the pieces lock together from the floor to the rim and
+assemble by sliding together vertically. The bulkhead is slit on the dovetail's
+centreline and the sheet drawn out through it, so the tang is a true fold whose
+interior stays continuous with the channel, and the seam is closed by that
+folded form rather than by an unbroken plate. Prints as dovetailed
 pieces that seat in the case. Fidelity is measured at the original 1.2 mm wall / 1 mm floor — the
 shipped defaults are deliberately heavier, see *Intentional deviations* below.
-It is the slowest model to build (~14 s).
+It is the slowest model to build — a split perimeter takes roughly a minute
+(`perimeter-square-corners`, with more channel to fill at the corner seams,
+about 85 s).
 
 **Smooth Perimeter (gridfinity interior)** — the same build at a 42 mm grid with
 bumps off, matching the original smooth variant.
@@ -221,6 +227,10 @@ slab at its root and another at its tip.
   the U-channel narrows to nothing, so the bulkhead and the tang are trimmed away
   there. At the defaults the joint still engages over about 90 mm of the 110 mm
   height. Inherent to the case's rounded bottom, not a modelling gap.
+- **Thick walls give a solid tang.** The dovetail is folded to `wallThick`,
+  but above roughly `dovetailWidth/2 · cos(dovetailAngle)` the erosion has
+  nothing left to remove and the tang comes out solid. That is the intended
+  degradation, not a gap — a fold thinner than the wall would be the defect.
 - The perimeter's foot is a flat floor rather than the original's gusseted ramp,
   and its dividers are evenly spaced rather than cloning the original's ad-hoc
   per-edge layout. Both are deliberate simplifications.

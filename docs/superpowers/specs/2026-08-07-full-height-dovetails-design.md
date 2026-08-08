@@ -69,6 +69,9 @@ The ground truth's tang and socket are thin-walled (everything in that design is
   prism on the tang piece, a matching slot on the socket piece. Thin-walling the
   tang is not reproduced — at `wallThick` 3 mm a 5 mm-deep dovetail has no
   meaningful core left to hollow.
+  (Amended by `2026-08-07-folded-dovetail-tang-design.md`: the tang is folded
+  to `wallThick` after all, degrading to solid only where the erosion runs out
+  of material to remove.)
 - **REQ-3** The socket piece's end web is pierced by the dovetail mouth, and the
   slot behind it is flanked by `wallThick` of material on both flanks and backed
   by `wallThick` at its far end, so the tang bottoms out against material.

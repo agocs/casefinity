@@ -29,9 +29,12 @@ because the smoke tests validate against nominal ground truth:
 - **Case clearance** (`clearance`, default `0`) insets the whole outer envelope.
   Real cases have draft, mould seams, and radii that a nominal envelope does not
   account for. **Try ~0.15 mm.**
-- **Dovetail clearance** (`dovetailClear`, default `0.2`) grows the end-piece
-  socket beyond the side-piece tang, opening a slide-fit gap. It does not affect
-  the bounding box. `0.2` is usually right; increase it if the pieces bind.
+- **Dovetail clearance** (`dovetailClear`, default `0.2`) opens a slide-fit
+  gap between the side-piece tang and the end-piece socket, measured
+  **perpendicular to the dovetail flank**. It does not affect the bounding
+  box. `0.2` is usually right; increase it if the pieces bind. (Before
+  Aug 2026 the same number produced a ~0.15 mm flank gap, so if you had
+  dialled this in for your printer, re-check the fit on one seam first.)
 
 Before committing to a full frame, print the **Perimeter template** — two 1 mm
 cross-sections of the case wall — and check them against your actual case. It
@@ -65,8 +68,21 @@ fits the bed.
 Every seam — the four corner joints and every extra bed-split seam — is closed by
 a **bulkhead**: a wall filling the whole U-channel cross-section, one wall
 thickness either side of the seam, running the full height of the frame. The
-dovetail runs through it as a **vertical prism**: a solid tang on one piece, a
-matching slot on the other.
+dovetail runs through it as a **vertical prism**: a tang on one piece, a
+matching slot on the other. The tang is **folded to one wall thickness**, not
+solid — the same ribbon of wall as the rest of the frame, which is what the
+original design does. It is a genuine fold rather than a hollow box: the
+bulkhead is slit along the dovetail's centreline and the sheet drawn out
+through it, so the tang's inside is continuous with the frame's own hollow.
+So a thin-walled frame never buries a solid slug in the
+middle of a seam, and the saving grows as the wall gets thinner — at the
+original 1.2 mm liner thickness a split perimeter comes out about 4.4% lighter
+than before the fold existed; at the shipped 3 mm default, where the tang's neck
+starts out narrow relative to the wall, about 0.3%. At heavy wall thicknesses
+the fold has nothing left to hollow and the tang is simply solid.
+
+`dovetailWidth` is the tang's width **at the seam plane**, and
+`dovetailAngle` is the true angle of its flank.
 
 So the joint holds over the frame's full height rather than only down at the
 floor, which is what stops a loaded frame splaying apart at the mouth. (An

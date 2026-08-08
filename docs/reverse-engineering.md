@@ -135,9 +135,11 @@ a straight vertical prism. The STEP is Y-up, so "height" is y:
   away from the mouth (half-width ≈3.3 at the mouth, ≈5.2 at 3 mm depth — a ~30°
   flank, matching `BOARDER_DOVETAIL_ANGLE`).
 
-The ground truth's tang and socket are thin-walled, but that is the 1.2 mm liner
-convention, not structural: the port builds a solid tang, since at a 3 mm wall a
-5 mm-deep dovetail has no core left to hollow.
+The ground truth's tang and socket are thin-walled. At the time this fix landed
+that looked like the 1.2 mm liner convention rather than something structural,
+so the port built a solid tang, reasoning that at a 3 mm wall a 5 mm-deep
+dovetail has no core left to hollow. A closer measurement later proved the fold
+structural — see below.
 
 Why the port missed it: building the tang by fusing its 2-D footprint into a
 piece's region and intersecting the frame only materialises it where the HOLLOW
@@ -160,8 +162,48 @@ truth's own 1.2 mm wall / 1 mm floor, against the 404,563 mm³ truth:
 
 (Band = x 138..150, y 100..124, z 25..105 in the port's centred Z-up frame.) The
 port now carries *more* material in that band than the truth does — 12,747 vs
-7,855 mm³ — because the truth's tang is a thin-walled shell and the port's is
-solid. The remaining 3.0% is the flat-floor foot, unrelated to the joints.
+7,855 mm³ — because the truth's tang is a thin-walled shell and the port's was
+solid at the time (see below — the port now folds it too). The remaining 3.0%
+is the flat-floor foot, unrelated to the joints.
+
+**The tang is a fold, not a solid.** A closer measurement of
+`ground-truth/Hardcase_Gridfinity_Perimeter.step` (Y-up, 4 solids: rails at
+x 28.79..321.21, caps at x 0..32.51 and 315.99..350.02) confirmed it. A
+horizontal section at mid-height (y 55..56), material per 1 mm of x:
+
+| x | 28 | 29 | 30 | 31 | 32 | 33 | 34–38 |
+|---|---|---|---|---|---|---|---|
+| rail | 1.98 | 9.19 | 2.77 | 2.77 | 10.86 | 19.42 | 2.40 |
+| cap | 10.60 | 5.11 | 7.63 | 22.58 | 15.11 | 0 | 0 |
+
+Reading the rail: the bulkhead sits at x ≈ 32.6..33.8 (1.2 mm across the
+~25 mm border ⇒ ~25 mm²/mm, matching the 19.42 and 10.86 columns). The tip
+face at x 28.79..29.99 reads 9.19 mm²/mm — a 1.2 mm wall about 7.7 mm wide —
+and behind it, at x 30..32.6, only 2.77 mm²/mm: two 1.2 mm flanks and nothing
+between them. Therefore the tang is hollow: the bulkhead sheet folds out into
+the dovetail outline and folds back.
+
+**The fold is also open at its narrow end**, and this table cannot show it —
+which is worth recording, because the first reading of these numbers concluded
+the opposite. Integrating material across the whole border at x = 33 gives
+~24.3 mm of a ~25 mm span, which looks like an unbroken bulkhead and is not.
+Profiling the same station cell by cell along z instead reveals a slot on the
+dovetail centreline (z ≈ −14.5..−13.0), 1.5 mm wide at the web and widening
+outward — 2.5 mm at x = 32, 4.5 at x = 31, 5.5 at x = 30. The sheet is slit and
+drawn out; the dovetail's interior is continuous with the channel behind it. A
+1.5 mm gap inside a 25 mm total is invisible to an integrated measurement, and
+the arithmetic agreeing with the assumption is what stopped the first reading
+looking further. **When a section total matches expectation, that is not
+evidence the section has no holes in it** — profile the axis you are
+integrating over.
+
+The port reproduces both properties via `seamCore`, whose void runs the
+profile's whole length rather than stopping at the seam plane. Its slot is wider
+than the original's (a constant `dovetailWidth − 2·wallThick·sec(angle)`, ≈7.2 mm
+at a 1.2 mm wall) because the port's profile holds constant width behind the
+seam plane to keep `dovetailAngle` honest, where the original's pure trapezoid
+keeps flaring and so pinches its own void shut. See
+`docs/superpowers/specs/2026-08-07-folded-dovetail-tang-design.md`.
 
 **Dividers** (`BOARDER_DIVIDERS`) are sparse full-height ribs that fill the
 border channel and project into the cavity. The original's layout is ad-hoc per

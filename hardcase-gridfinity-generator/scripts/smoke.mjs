@@ -63,7 +63,23 @@ const expected = {
   // change costs the rounded-corner perimeter, because a square cavity corner
   // reaches further out at the corner seams, leaving a narrower channel there
   // for the bulkhead to fill.
-  "perimeter-square-corners": { x: 350, y: 250, z: 110, volume: 846992 },
+  // The honest flank angle then ADDED 3265 (846992 -> 850257), which is two
+  // effects with opposite signs. The tang's neck narrows from 11.65 mm to
+  // dovetailWidth, taking material off; but the seam collar is now offset
+  // PERPENDICULAR to the flank rather than across the band, so a socket flank
+  // is a true wallThick thick where it used to vary along the flank -- the old
+  // collar wasn't even parallel to the old socket (slopes 0.283 vs 0.401), so
+  // the old effective thickness ran from about 2.6 mm near the seam plane down
+  // to about 2.0 mm at the tip. Four seams' worth of thicker flanks outweighs
+  // four narrower necks.
+  // Folding the tangs then removed 3546 (850257 -> 846711): four seam
+  // dovetails hollowed to one wall thickness. Opening the folds at their narrow
+  // end removed a further 2579 (846711 -> 844132): the void runs the profile's
+  // whole length, so it slits each end web on the dovetail centreline instead
+  // of stopping at it. That is what the ground truth does -- its rail's web
+  // carries a ~1.5 mm slot there, which an earlier reading of this model missed
+  // by integrating material across the whole border and never looking for a gap.
+  "perimeter-square-corners": { x: 350, y: 250, z: 110, volume: 844132 },
   "bin-no-lid": { x: 46.3, y: 46.3, z: 115, volume: 28618, params: { ribWidth: 1.2, draftAngle: 0 } },
   // body + lid: plate flush with the rim, both rail beads, the lock swell, the
   // +X rail ledge, the finger scoop, the socket notches and the TOP engraving.
@@ -169,6 +185,9 @@ for (const model of models) {
 //   - no two pieces overlap. The socket is the tang grown by dovetailClear, so
 //     any interference means that clearance was lost and the parts will not
 //     assemble.
+//   - the profile is what the parameters say: flank angle = dovetailAngle,
+//     width at the seam plane = dovetailWidth, socket gap = dovetailClear
+//     measured perpendicular to the flank.
 console.log("perimeter full-height dovetail joints:");
 {
   const { drawRectangle } = await import("replicad");
@@ -236,6 +255,136 @@ console.log("perimeter full-height dovetail joints:");
       try { overlap += measureVolume(pieces[i].clone().intersect(pieces[j].clone())); } catch { /* disjoint */ }
     }
   check(overlap < 0.01, `no interference between pieces (${overlap.toFixed(3)} mm3)`);
+
+  // --- Profile geometry. Two properties the parameters claim and the old
+  // trapezoid did not deliver: the flank makes exactly `dovetailAngle` with
+  // the seam axis, and `dovetailWidth` is the tang's width AT THE SEAM PLANE.
+  // The old profile ran from pos-2 to pos+depth but flared by only
+  // depth*tan(A) across that whole run, so at the defaults the flank came out
+  // at 22.4 deg (tan 0.4126) where the parameter said 30, and the neck
+  // measured 11.65 mm where it said 10. The TIP half-width was and stays
+  // w/2 + depth*tan(A) -- which is why no bounding box moves.
+  //
+  // Measured on the RAIL piece: past the seam plane a rail carries nothing but
+  // its tang, so the outermost y of a thin x-sliver IS the flank. Taken over
+  // 10 mm of height at mid-frame, where the tang is ~0.8 mm clear of the
+  // tapered outer wall, so nothing clips it.
+  const rail = pieces.find((s) => s.boundingBox.bounds[0][1] > 0); // the +Y long rail
+  const cap = pieces.find((s) => s.boundingBox.bounds[1][0] > p.overallLength / 2 - 1); // +X end cap
+
+  // Tang half-width at x. The sliver ENDS at x and maxY picks its far edge, so
+  // the reading is the flank exactly at x.
+  const tangHalfWidthAt = (x) => {
+    const tool = drawRectangle(0.5, 40).translate(x - 0.25, yc).sketchOnPlane("XY", 50).extrude(10);
+    const { vertices } = rail.clone().intersect(tool).mesh({ tolerance: 0.01, angularTolerance: 5 });
+    let maxY = -Infinity;
+    for (let i = 1; i < vertices.length; i += 3) maxY = Math.max(maxY, vertices[i]);
+    return maxY - yc;
+  };
+  // Socket half-width at x: the cap's nearest material above the band centre.
+  // The sliver STARTS at x and the socket widens outward, so minY reads at x.
+  const socketHalfWidthAt = (x) => {
+    const tool = drawRectangle(0.5, 20).translate(x + 0.25, yc + 10).sketchOnPlane("XY", 50).extrude(10);
+    const { vertices } = cap.clone().intersect(tool).mesh({ tolerance: 0.01, angularTolerance: 5 });
+    let minY = Infinity;
+    for (let i = 1; i < vertices.length; i += 3) minY = Math.min(minY, vertices[i]);
+    return minY - yc;
+  };
+
+  const hw2 = tangHalfWidthAt(splitX + 2);
+  const hw4 = tangHalfWidthAt(splitX + 4);
+  const slope = (hw4 - hw2) / 2;
+  const neck = 2 * (hw2 - 2 * slope);
+  const wantSlope = Math.tan((p.dovetailAngle * Math.PI) / 180);
+  check(
+    Math.abs(slope - wantSlope) < 0.01,
+    `flank angle equals dovetailAngle (tan ${slope.toFixed(4)} vs ${wantSlope.toFixed(4)}; was 0.4126)`,
+  );
+  check(
+    Math.abs(neck - p.dovetailWidth) < 0.05,
+    `tang is dovetailWidth at the seam plane (${neck.toFixed(3)} vs ${p.dovetailWidth}; was 11.650)`,
+  );
+  // The tip must NOT move: it is what fixes the tang's reach and the bbox.
+  const wantTip = p.dovetailWidth + 2 * p.dovetailDepth * wantSlope;
+  const tipWidth = 2 * tangHalfWidthAt(splitX + p.dovetailDepth);
+  check(
+    Math.abs(tipWidth - wantTip) < 0.05,
+    `tang tip width unchanged (${tipWidth.toFixed(3)} vs ${wantTip.toFixed(3)})`,
+  );
+  // dovetailClear is a PERPENDICULAR gap: the socket is the tang offset normal
+  // to each face, so the flank gap is c*sec(A). The old profile widened the
+  // socket across the band AND stretched its flank over a longer run, which
+  // left 0.154 mm where 0.2 was nominally asked for.
+  const gap = socketHalfWidthAt(splitX + 2) - hw2;
+  const wantGap = p.dovetailClear / Math.cos((p.dovetailAngle * Math.PI) / 180);
+  check(
+    Math.abs(gap - wantGap) < 0.02,
+    `dovetailClear is a perpendicular gap (${gap.toFixed(3)} vs ${wantGap.toFixed(3)}; was 0.154)`,
+  );
+
+  // --- The fold. The tang is a wallThick shell, not a solid prism, so its
+  // section area must DEPEND on wallThick. Before this it was identical at 1.2
+  // and 3.0 -- 12.47 / 13.30 / 14.12 / 14.95 mm2 per mm of x at x = 143..146,
+  // in both cases exactly the nominal trapezoid width -- because the tang
+  // footprint was materialised solid and wallThick entered only the socket's
+  // collar. Section taken over x in [splitX+1, splitX+4], 10 mm of height at
+  // mid-frame. One extra build (~58 s); the 3.0 case reuses `pieces`.
+  //
+  // This block adds two full perimeter builds on top of the six the smoke
+  // suite already runs before it (perimeter, smooth-perimeter,
+  // perimeter-square-corners, plus this block's own `pieces`), and the OCCT
+  // WASM heap is hard-capped at 2 GiB (compiled into replicad_single.wasm's
+  // memory section, not runtime-configurable) — see scaling-test.mjs's own
+  // "heap is small; leaks abort later builds" comment for the same ceiling
+  // hit before. `built`, the tool solid, the clone and the intersection
+  // result are all deleted as soon as they are measured so this block doesn't
+  // add to the pile; `globalThis.gc?.()` after each heavy build forces the
+  // FinalizationRegistry to run promptly, since V8 can't otherwise sense WASM
+  // heap pressure from the small JS wrapper objects (matches scaling-test.mjs).
+  //
+  // A single `globalThis.gc?.()` marks the abandoned wrappers unreachable but
+  // V8 doesn't guarantee the FinalizationRegistry callbacks that actually free
+  // the WASM side run within that same synchronous call — they're scheduled
+  // as a task, so a build immediately following a bare gc() can still start
+  // before the previous one's memory is actually released. Yielding once
+  // (setImmediate) lets that task run, then a second gc() sweeps whatever the
+  // first pass turned up.
+  const yieldTick = () => new Promise((resolve) => setImmediate(resolve));
+  const sectionOf = async (built, x0, dx) => {
+    const r = built.find((s) => s.boundingBox.bounds[0][1] > 0);
+    const tool = drawRectangle(dx, 40).translate(x0 + dx / 2, yc).sketchOnPlane("XY", 50).extrude(10);
+    const clone = r.clone();
+    const piece = clone.intersect(tool);
+    const volume = measureVolume(piece);
+    piece.delete();
+    clone.delete();
+    tool.delete();
+    built.forEach((s) => s.delete());
+    globalThis.gc?.();
+    await yieldTick();
+    globalThis.gc?.();
+    return volume;
+  };
+  const thick = await sectionOf(pieces, splitX + 1, 3);
+  const thin = await sectionOf(model.build({ ...p, wallThick: 1.2 }), splitX + 1, 3);
+  check(
+    thin < thick * 0.5,
+    `tang folds to wallThick (section ${thin.toFixed(0)} mm3 at 1.2 vs ${thick.toFixed(0)} at 3.0; ` +
+      `both were 387 before)`,
+  );
+
+  // Degeneracy (spec REQ-4): once wallThick*secA exceeds the tang's half-width
+  // there is no core left to remove, and the tang must come out solid with no
+  // branch in the caller and no throw. At wallThick 4.5 the eroded half-width
+  // 5 - 4.5*secA is negative. Measured over [splitX+1, splitX+2] only --
+  // further out, a wall that thick clips the tang. This one passes before the
+  // change too: it guards the new branch, it does not drive it.
+  const stout = await sectionOf(model.build({ ...p, wallThick: 4.5 }), splitX + 1, 1);
+  const wantStout = 10 * (p.dovetailWidth + 2 * 1.5 * wantSlope); // solid, 1 mm of x, 10 mm high
+  check(
+    Math.abs(stout - wantStout) / wantStout < 0.05,
+    `tang stays solid where the fold degenerates (${stout.toFixed(0)} vs ${wantStout.toFixed(0)} mm3)`,
+  );
 }
 
 // ---------------------------------------------------------------------------

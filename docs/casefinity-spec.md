@@ -446,9 +446,13 @@ only its own `2c = 0.20 mm`:
   clearance analysed here. Each seam is closed by a **bulkhead** filling the
   U-channel cross-section, `WALL_THICK` either side of the seam plane and running
   the frame's full height, with the dovetail through it as a **vertical prism** —
-  a solid tang on one piece, a slot grown by `BOARDER_DOVETAIL_CLEAR` on the
-  other. Pieces therefore assemble by sliding together **vertically**, and the
-  joint constrains both in-plane axes over the full height; vertical separation is
+  a tang folded to `WALL_THICK` on one piece, not solid, and a matching slot grown
+  by `BOARDER_DOVETAIL_CLEAR` on the other. Both bulkheads are pierced on the
+  dovetail centreline — the tang is drawn out through a slit in its own, so its
+  interior stays continuous with the channel — and the seam is closed by that
+  folded form rather than by an unbroken plate. Pieces therefore assemble by sliding
+  together **vertically**, and the joint constrains both in-plane axes over the
+  full height; vertical separation is
   unconstrained by design (it is the assembly direction, and the case retains the
   frame). All of this is liner-internal: it consumes only border material outboard
   of the cavity wall, so it changes no interface dimension and `WALL_THICK` stays
