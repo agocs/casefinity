@@ -69,7 +69,12 @@ check both before concluding it is missing.
 - `npm run build` — type-check (tsc) + production build
 - `npm run smoke` — the test suite: builds every registered model headlessly in
   Node with the real OCCT kernel and asserts bounding boxes and volumes against
-  ground truth (expected values table at the top of `scripts/smoke.mjs`)
+  ground truth (expected values table at the top of `scripts/smoke.mjs`). Runs
+  as a pool of child processes, one per *unit*, because the OCCT WASM heap is
+  capped at 2 GiB per process and no unit may hold more than one
+  perimeter-scale build; ~95 s wall clock for ~455 s of work. Run one unit in
+  the foreground with `node scripts/smoke.mjs <unit>`, cap the pool with
+  `SMOKE_JOBS`
 - `npm run test:session` — unit-tests the `CadSession` build/export concurrency
   state machine with a fake worker (no OCCT; runs in ~1 s)
 
@@ -130,6 +135,15 @@ Reverse-engineering/verification scripts (Node, in `scripts/`):
 - `importSTEP` returns a `Compound` for multi-solid files, and booleans on
   compounds silently misbehave — always explode via
   `occt-utils.importStepSolids()` first.
+- Freeing OCCT memory in Node needs a **yield**, not just `gc()`. replicad
+  releases handles from a `FinalizationRegistry`, and V8 runs those callbacks as
+  a scheduled task, so a synchronous loop never actually frees anything however
+  often it calls `gc()` — this is what made `scaling-test.mjs` abort on its
+  heaviest variant. Use its `collect()` pattern (gc → `setImmediate` → gc).
+  Measured over 300 identical probes: 515 MiB heap with gc alone, 69 MiB with
+  the yield. Deleting your own temporaries is good hygiene but does **not**
+  substitute — most of the memory belongs to intermediates inside replicad's
+  own helpers, which only the registry can reach.
 - OCCT geometry traps encountered: `shell()` fails on tapered rounded-rect
   lofts (build outer/inner lofts and cut instead); extending a cutter past a
   tapered solid's ends leaves boolean debris (use coplanar caps — see
@@ -137,7 +151,10 @@ Reverse-engineering/verification scripts (Node, in `scripts/`):
   try/catch, as `slabVolume` does).
 - New models: derive dimensions from Fusion parameter expressions where known
   (not magic numbers), register in `src/models/index.ts`, verify with
-  `diff-model.mjs`, then add expected bbox/volume to `smoke.mjs`. Achieved
+  `diff-model.mjs`, then add expected bbox/volume to `smoke.mjs` and assign the
+  model to one of its `MODEL_UNITS` (its own unit if it is perimeter-scale,
+  `bins` if it builds in a few seconds; an unassigned model fails the suite
+  rather than going untested). Achieved
   fidelity so far: bin-no-lid 0.02%, bin-double-sided 0.3% volume error;
   all 8 models pass smoke. Document any deliberate gaps (like the with-lid
   lid seat) in the model file's doc comment and the `docs/models.md` table.
