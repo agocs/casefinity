@@ -1,4 +1,5 @@
 import { strToU8, zipSync } from "fflate";
+import type { PartMesh } from "./exports.ts";
 
 /**
  * Minimal 3MF (3D Manufacturing Format) writer.
@@ -15,14 +16,6 @@ import { strToU8, zipSync } from "fflate";
  * build plate. Coordinates are the model's own Z-up space in millimetres —
  * identical to the STL export — so z=0 sits on the plate.
  */
-
-/** A triangle mesh as produced by replicad's `Shape3D.mesh()`. */
-export interface PartMesh {
-  /** Flat [x,y,z, x,y,z, …] vertex coordinates. */
-  vertices: number[];
-  /** Flat vertex-index triples, one per triangle. */
-  triangles: number[];
-}
 
 export interface Part {
   name: string;
@@ -106,13 +99,4 @@ export function build3mf(parts: Part[], title: string): Uint8Array<ArrayBuffer> 
     },
     { level: 6 },
   );
-}
-
-/**
- * Name the parts of a model: the model id for a single body, else
- * `<id>-part-1`, `<id>-part-2`, … so each object is identifiable in the slicer.
- */
-export function partNames(modelId: string, count: number): string[] {
-  if (count === 1) return [modelId];
-  return Array.from({ length: count }, (_, i) => `${modelId}-part-${i + 1}`);
 }

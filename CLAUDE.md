@@ -77,6 +77,11 @@ check both before concluding it is missing.
   `SMOKE_JOBS`
 - `npm run test:session` — unit-tests the `CadSession` build/export concurrency
   state machine with a fake worker (no OCCT; runs in ~1 s)
+- `npm run check-exports` — round-trips every format through the real kernel and
+  asserts a model's pieces stay *separate* (STEP re-imports as one named solid
+  per part; the binary STL's triangle count and signed volume account for every
+  part). One model per child process. Run one with
+  `node scripts/check-exports.mjs <modelId>`
 
 Reverse-engineering/verification scripts (Node, in `scripts/`):
 
@@ -106,10 +111,14 @@ Reverse-engineering/verification scripts (Node, in `scripts/`):
   preempts the in-flight one by terminating and respawning the worker (OCCT
   builds are synchronous WASM with no cancellation point); exports are never
   preempted, and a build requested during one parks in a single latest-wins
-  slot. The worker arrives via an injected spawn function, keeping the module
-  browser-global-free and testable in Node.
+  slot. A STEP export also retires the worker once the blob is delivered (see
+  the export note below). The worker arrives via an injected spawn function,
+  keeping the module browser-global-free and testable in Node.
 - `src/worker.ts` — comlink-exposed web worker; loads the OCCT WASM once
-  (`replicad-opencascadejs`), builds/meshes models, exports STL/STEP blobs.
+  (`replicad-opencascadejs`), builds/meshes models, and delegates every export
+  format to `src/exports.ts` (kept outside the worker and browser-API-free so
+  `npm run check-exports` tests the shipped path). `src/stl.ts` and
+  `src/three-mf.ts` are the STL and 3MF writers.
   `src/main.ts` wires the model selector, debounced param form (`params-form.ts`),
   three.js viewer (`viewer.ts`, Z-up), and export buttons.
 - `scripts/occt-utils.mjs` — shared Node bootstrap for the OCCT kernel plus
@@ -144,6 +153,20 @@ Reverse-engineering/verification scripts (Node, in `scripts/`):
   the yield. Deleting your own temporaries is good hygiene but does **not**
   substitute — most of the memory belongs to intermediates inside replicad's
   own helpers, which only the registry can reach.
+- **Never fuse a model's build shapes on the way out.** They touch (the
+  perimeter's seam bulkheads butt face-to-face; a bin's lid sits on its body), so
+  a boolean union welds them into one solid and merges the coplanar seam faces
+  away — a split liner then opens in Onshape or a slicer as a single body with no
+  seams. `src/exports.ts` keeps every format multi-part; `npm run check-exports`
+  guards it.
+- replicad shape lifetimes are sharp: `makeCompound`/`compoundShapes` calls
+  `delete()` on every input, and `clone()` returns a new wrapper around the
+  **same** OCCT handle — so cloning before compounding frees geometry the caller
+  still holds and faults the kernel nondeterministically later. `exportSTEP` also
+  double-frees its `XSControl_WorkSession` (registered for deletion *and* handed
+  to a smart pointer), which faults the kernel around the 5th call in a process;
+  `cad-session.ts` retires the worker after each STEP export to contain it. Both
+  are replicad 0.23.1, the current release.
 - OCCT geometry traps encountered: `shell()` fails on tapered rounded-rect
   lofts (build outer/inner lofts and cut instead); extending a cutter past a
   tapered solid's ends leaves boolean debris (use coplanar caps — see

@@ -109,7 +109,17 @@ export class CadSession {
     values: ParamValues,
   ): Promise<Blob> {
     if (this.#job) this.#kill();
-    return this.#run("export", (api) => api[EXPORT_METHOD[kind]](modelId, values));
+    // replicad's named STEP writer (0.23.1, the current release) registers its
+    // XSControl_WorkSession for deletion *and* hands it to an OCCT smart
+    // pointer, so every call double-frees one: measured, the kernel faults on
+    // the 5th export in a process. Retiring the worker after each STEP export
+    // costs a WASM reload the user does not wait on — the blob has already been
+    // handed over — and keeps the named-parts export we want for CAD imports.
+    return this.#run(
+      "export",
+      (api) => api[EXPORT_METHOD[kind]](modelId, values),
+      kind === "step",
+    );
   }
 
   /** Release the parked build, if any, now that the worker is free. */
@@ -133,31 +143,42 @@ export class CadSession {
   #kill(): void {
     const job = this.#job;
     this.#job = null;
-    this.#handle.terminate();
-    this.#handle = this.#spawn();
+    this.#recycle();
     job?.reject(new Cancelled());
   }
 
-  #run<T>(kind: Job["kind"], call: (api: CadApi) => Promise<T>): Promise<T> {
+  /** Throw the worker away and start a fresh one. */
+  #recycle(): void {
+    this.#handle.terminate();
+    this.#handle = this.#spawn();
+  }
+
+  /**
+   * `recycleAfter` replaces the worker once the call settles. It runs before
+   * `#drain()` so a rebuild parked during the job starts on the new worker
+   * rather than on the one about to be terminated.
+   */
+  #run<T>(
+    kind: Job["kind"],
+    call: (api: CadApi) => Promise<T>,
+    recycleAfter = false,
+  ): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       const job: Job = { kind, reject };
       this.#job = job;
       this.#sync();
+      // A terminated worker never settles, but guard anyway in case it resolves
+      // in the same tick it is killed.
+      const settle = (deliver: () => void) => {
+        if (this.#job !== job) return;
+        this.#job = null;
+        if (recycleAfter) this.#recycle();
+        deliver();
+        this.#drain();
+      };
       call(this.#handle.api).then(
-        (value) => {
-          // A terminated worker never settles, but guard anyway in case it
-          // resolves in the same tick it is killed.
-          if (this.#job !== job) return;
-          this.#job = null;
-          resolve(value);
-          this.#drain();
-        },
-        (error) => {
-          if (this.#job !== job) return;
-          this.#job = null;
-          reject(error);
-          this.#drain();
-        },
+        (value) => settle(() => resolve(value)),
+        (error) => settle(() => reject(error)),
       );
     });
   }

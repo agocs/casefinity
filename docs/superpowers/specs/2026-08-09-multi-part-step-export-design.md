@@ -131,6 +131,53 @@ between models. Handle it if it appears rather than pre-engineering.
   export description.
 - `docs/models.md` — no change; it does not discuss export formats.
 
+## As built
+
+Four things changed during implementation. The user-visible outcome is
+unchanged — every format keeps a model's pieces separate, and STEP parts are
+named — but the mechanism differs from the design above.
+
+**`src/parts.ts` became `src/exports.ts` + `src/stl.ts`.** The design put only
+`partNames()` in a new module, which would have left `check-exports.mjs`
+re-implementing the export calls: a regression in the shipped path could pass the
+check. The whole build-and-serialize path moved out of the worker instead, so the
+script drives the same functions the worker does. `PartMesh` moved to
+`exports.ts` alongside `NamedPart`, and `three-mf.ts` imports the type from
+there.
+
+**STL is written directly, and is now binary rather than ASCII.**
+`makeCompound(shapes).blobSTL()` cannot work: `makeCompound` calls `delete()` on
+every input shape, so it consumes the caller's parts. `clone()` does not help —
+it returns a new wrapper around the *same* OCCT handle, so deleting the clone
+frees geometry the original still points at, which faults the kernel
+nondeterministically later. `src/stl.ts` serializes the part meshes (the same
+ones 3MF writes) into a binary STL instead, which removes the compound, the
+OCCT STL writer, and the whole class of handle-lifetime hazards. Binary STL is
+also roughly 2.5x smaller than the ASCII that shipped before.
+
+**A STEP export now retires the worker.** replicad 0.23.1 (the current release)
+registers `exportSTEP`'s `XSControl_WorkSession` for deletion *and* hands it to
+an OCCT smart pointer, so every call double-frees one. Measured: the kernel
+faults on the 5th STEP export in a process. Since `cad-session.ts` only respawns
+the worker on build preemption, a user clicking Download STEP repeatedly would
+hit it. `exportModel` therefore passes `recycleAfter` for `kind === "step"`; the
+recycle runs after the blob is delivered and before `#drain()`, so a rebuild
+parked during the export starts on the fresh worker. The alternative — a
+compound + `blobSTEP()`, which is provably stable over 12 exports — was rejected
+because it loses the part names.
+
+**`check-exports.mjs` forks one child per model**, like `smoke.mjs`. A perimeter
+build plus a re-imported copy is already most of the 2 GiB WASM heap, and the
+STEP leak above makes five exports in one process a coin flip. Expect one
+`RuntimeError` per child on stderr from the double-free; it surfaces from a
+`FinalizationRegistry` callback after the file is written, and the child still
+exits 0.
+
+The STL assertion also got stronger than specified: rather than only comparing
+triangle counts, the check parses the binary STL back and verifies its signed
+volume against the sum of the exact part volumes, so it tests coordinates and
+winding too instead of restating `stl.ts`.
+
 ## Out of scope
 
 No new export button, no new file format, no `ModelDef` changes, no geometry

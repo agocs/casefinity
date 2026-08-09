@@ -142,7 +142,7 @@ test("a second build during an export replaces the deferred one", async () => {
   const { spawn, spawned } = makeSpawn();
   const session = new CadSession(spawn);
 
-  const exported = session.exportModel("step", "perimeter", { n: 1 });
+  const exported = session.exportModel("3mf", "perimeter", { n: 1 });
   const first = session.build("perimeter", { n: 2 });
   const second = session.build("perimeter", { n: 3 });
 
@@ -155,6 +155,56 @@ test("a second build during an export replaces the deferred one", async () => {
   assert.equal(spawned[0].calls[1].values.n, 3, "the newest deferred build wins");
   spawned[0].calls[1].resolve(["SECOND"]);
   assert.deepEqual(await second, ["SECOND"]);
+});
+
+// replicad's named STEP writer double-frees an OCCT work session on every call,
+// so the session retires the worker after each STEP export. See exportModel.
+test("a STEP export retires the worker once the blob is delivered", async () => {
+  const { spawn, spawned } = makeSpawn();
+  const session = new CadSession(spawn);
+
+  const exported = session.exportModel("step", "perimeter", { n: 1 });
+  assert.equal(spawned.length, 1);
+  assert.equal(spawned[0].terminated, false, "the worker must survive until the blob lands");
+
+  spawned[0].calls[0].resolve("BLOB");
+  assert.equal(await exported, "BLOB", "the blob must still be delivered");
+
+  assert.equal(spawned[0].terminated, true, "the leaking worker must be retired");
+  assert.equal(spawned.length, 2, "a fresh worker must replace it");
+  assert.equal(spawned[1].terminated, false);
+});
+
+test("a STEP export leaves its deferred build on the fresh worker", async () => {
+  const { spawn, spawned } = makeSpawn();
+  const session = new CadSession(spawn);
+
+  const exported = session.exportModel("step", "perimeter", { n: 1 });
+  const built = session.build("perimeter", { n: 2 });
+
+  spawned[0].calls[0].resolve("BLOB");
+  await exported;
+
+  assert.equal(spawned.length, 2);
+  assert.equal(spawned[0].calls.length, 1, "the retired worker must not be handed the build");
+  assert.equal(spawned[1].calls.length, 1, "the deferred build runs on the replacement");
+  assert.equal(spawned[1].calls[0].method, "mesh");
+  spawned[1].calls[0].resolve(["DEFERRED"]);
+  assert.deepEqual(await built, ["DEFERRED"]);
+});
+
+test("STL and 3MF exports keep the worker alive", async () => {
+  for (const kind of ["stl", "3mf"]) {
+    const { spawn, spawned } = makeSpawn();
+    const session = new CadSession(spawn);
+
+    const exported = session.exportModel(kind, "perimeter", { n: 1 });
+    spawned[0].calls[0].resolve("BLOB");
+    await exported;
+
+    assert.equal(spawned.length, 1, `${kind} must not respawn the worker`);
+    assert.equal(spawned[0].terminated, false, `${kind} must not terminate the worker`);
+  }
 });
 
 let failed = 0;

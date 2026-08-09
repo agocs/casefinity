@@ -16,8 +16,7 @@ npm run dev          # dev server
 npm run build        # type-check (tsc) + production build → dist/
 npm run smoke        # build every model in Node, verify against ground truth
 npm run test:session # CadSession concurrency unit test (no OCCT, ~1 s)
-npm run check-3mf    # verify .3mf exports: package structure + watertight,
-                     # outward-wound meshes
+npm run check-exports # verify STL/STEP/3MF exports round-trip as separate parts
 npm run scaling      # parametric invariant harness
 npm run build-spec   # re-render docs/casefinity-spec.md → public/casefinity-spec.html
 ```
@@ -60,9 +59,20 @@ callbacks V8 only runs as a scheduled task, so the harness's `gc()` calls
 released nothing at all while the loop stayed synchronous. The heap climbed
 until a build aborted mid-suite. Keep the yield if you touch that loop.
 
-**`npm run check-3mf`** validates every model's 3MF package structure and confirms
-each part's mesh is watertight and outward-wound. 3MF stores no facet normals, so
-orientation is winding-only.
+**`npm run check-exports`** exercises `src/exports.ts` — the same module the worker
+calls — for every format, one model per child process. It validates the 3MF
+package structure and confirms each part's mesh is watertight and outward-wound
+(3MF stores no facet normals, so orientation is winding-only); re-imports the
+STEP and asserts it comes back as one named solid per part; and parses the binary
+STL back to check its triangle count and signed volume. The STEP and STL
+assertions are what catch a model's pieces being fused into a single body.
+
+Expect one `RuntimeError: null function or function signature mismatch` per child
+on stderr. replicad 0.23.1's named STEP writer registers its
+`XSControl_WorkSession` for deletion *and* hands it to an OCCT smart pointer, so
+every export double-frees one; the error surfaces from a `FinalizationRegistry`
+callback after the file is already written. It is why `cad-session.ts` retires the
+worker after each STEP export, and why this script forks per model.
 
 ## Architecture
 
@@ -82,17 +92,30 @@ orientation is winding-only.
   deliberately independent of wall thickness so parts printed at different wall
   thicknesses still mate.
 - **`src/worker.ts`** — comlink-exposed web worker. Loads the OCCT WASM kernel
-  once (`replicad-opencascadejs`), builds and meshes models, and exports
-  STL/STEP/3MF blobs.
+  once (`replicad-opencascadejs`), builds and meshes models, and delegates the
+  export formats to `src/exports.ts`.
+- **`src/exports.ts`** — builds a model into named parts and serializes them to
+  STL/STEP/3MF. Deliberately outside the worker and free of browser APIs, so
+  `npm run check-exports` tests the shipped export path rather than a copy of it.
+  Nothing here fuses a model's shapes: the perimeter's seam bulkheads butt
+  face-to-face, so a boolean union welds the pieces into one solid and merges the
+  seam faces away.
 - **`src/cad-session.ts`** — owns the CAD worker and serializes work on it. A newer
   build **preempts** the in-flight one by terminating and respawning the worker,
   rather than queueing behind it: OCCT builds are synchronous WASM with no
   cancellation point, so `terminate()` is the only way to stop one. Exports are
   never preempted; a build requested during an export parks in a single
-  latest-wins slot. It takes an injected spawn function, so it holds no browser
-  globals and is unit-testable in Node (`npm run test:session`).
+  latest-wins slot. A **STEP** export additionally retires the worker once the
+  blob is delivered, to contain replicad's work-session leak (see
+  `npm run check-exports` above). It takes an injected spawn function, so it holds
+  no browser globals and is unit-testable in Node (`npm run test:session`).
 - **`src/three-mf.ts`** — dependency-light 3MF writer (meshes → OPC ZIP via
   `fflate`), one `<object>` per shape so multi-part models split into parts.
+- **`src/stl.ts`** — binary STL writer. Serializes the part meshes directly
+  rather than calling replicad's `blobSTL()`, which takes a single shape: getting
+  several parts through it would mean fusing them or building a `Compound`, and
+  `makeCompound` calls `delete()` on its inputs (`clone()` does not help — it
+  wraps the *same* OCCT handle, so the delete frees geometry the caller holds).
 - **`src/viewer.ts`** — three.js viewport, Z-up, orbit controls.
 - **`src/params-form.ts`** — renders the parameter form from a `ModelDef` schema.
 - **`src/main.ts`** — UI wiring: model selector, debounced parameter form, viewer,
