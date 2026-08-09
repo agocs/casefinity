@@ -6,20 +6,39 @@ what clearances to dial in.
 
 ## Choosing an export format
 
-The generator offers **STL**, **STEP**, and **3MF**.
+The generator offers **STL**, **STEP**, and **3MF**. All three keep a model's
+pieces separate — the four dovetailed perimeter pieces, or a bin body plus its
+lids, are never fused together.
 
-**STL** and **STEP** fuse a model's shapes into a single solid. **3MF** keeps them
-separate: each build shape becomes its own `<object>` in the package (see
-`src/three-mf.ts`), so a multi-part model — the four dovetailed perimeter pieces,
-or a bin body plus its lids — imports as **individually selectable parts** on the
-slicer plate. For anything that comes out as more than one piece, 3MF is the one
-you want.
+**3MF** is the one to use for printing. Each piece becomes its own `<object>` in
+the package (see `src/three-mf.ts`), so a multi-part model imports as
+**individually selectable, named parts** on the slicer plate.
 
-Geometry is the model's own Z-up space in millimetres, identical to STL, so `z=0`
+**STEP** is the one to use for CAD. Each piece is its own named solid, so a split
+perimeter opens as four editable parts rather than one welded body — see
+[importing into CAD](#importing-into-cad) below. The *Solid block* model exists
+specifically as stock for subtracting your own tool-holder pockets.
+
+**STL** is the lowest common denominator: a binary triangle soup with no part
+names. The pieces are still separate closed shells, so a slicer's *split to
+objects* can pull them apart, but 3MF gives you the same thing already labelled.
+
+Geometry is the model's own Z-up space in millimetres in every format, so `z=0`
 sits on the plate.
 
-Use **STEP** if you intend to modify the model in CAD — the *Solid block* model
-exists specifically as stock for subtracting your own tool-holder pockets.
+### Importing into CAD
+
+Use **STEP**. Onshape, Fusion, FreeCAD and SolidWorks all read it as editable
+B-rep solids.
+
+The file is a product *assembly* with one named component per piece
+(`perimeter-part-1`, `perimeter-part-2`, …). In Onshape's import dialog, tick
+**flatten** to drop every piece into a single Part Studio in assembly position;
+without it you get an assembly plus one Part Studio per piece.
+
+Do **not** use 3MF for CAD work. Onshape does import it, but as a **mesh body** —
+you can view and reference it, and boolean against it, but not edit it as
+geometry.
 
 ## Print clearances
 
@@ -56,8 +75,8 @@ segments and each end cap into stacked segments, with an extra dovetail seam at
 every cut. The pieces still assemble into the same frame.
 
 The bed fields default to `0`, meaning no limit, which reproduces the original
-four pieces. Every export format works with subdivided output — 3MF names each
-piece separately.
+four pieces. Every export format works with subdivided output — 3MF and STEP
+both name each piece separately.
 
 `splitPieces` in `src/models/perimeter.ts` is the single source of this logic, and
 `npm run scaling` asserts that across bed sizes every piece is one clean solid and

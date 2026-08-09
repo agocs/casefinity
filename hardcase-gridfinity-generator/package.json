@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "smoke": "node scripts/smoke.mjs",
     "test:session": "node scripts/session-test.mjs",
-    "check-3mf": "node scripts/check-3mf.mjs",
+    "check-exports": "node --expose-gc scripts/check-exports.mjs",
     "build-spec": "node scripts/build-spec.mjs",
     "scaling": "node --expose-gc scripts/scaling-test.mjs"
   },
